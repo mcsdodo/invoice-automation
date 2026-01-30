@@ -25,15 +25,33 @@ This plan breaks the invoice automation service into phases with clear dependenc
 
 ### 1.3 Data models (`src/models.py`)
 - [ ] `WorkflowState` enum (IDLE, PENDING_INIT_APPROVAL, WAITING_DOCS, ALL_DOCS_READY, COMPLETE)
-- [ ] `WorkflowData` model (state, timesheet_path, approval_received, invoice_received, etc.)
+- [ ] `WorkflowData` model:
+  - `state: WorkflowState`
+  - `timesheet_path: str | None`
+  - `timesheet_info: TimesheetInfo | None`
+  - `approval_received: bool`
+  - `invoice_received: bool`
+  - `manager_thread_id: str | None` — for reply-to functionality
+  - `accountant_thread_id: str | None` — for reply-to functionality
+  - `invoice_pdf_path: str | None` — downloaded invoice location
+  - `approval_email_html: str | None` — for PDF conversion
+  - `waiting_since: datetime | None` — for timeout tracking
+  - `telegram_message_id: int | None` — for editing messages
 - [ ] `TimesheetInfo` model (total_hours, date_range, month, year)
 - [ ] JSON serialization for state persistence
 
 ### 1.4 Unit tests for Phase 1
 - [ ] Test config loading and validation
 - [ ] Test model serialization/deserialization
+- [ ] Test WorkflowData with all new fields
 
 **Deliverable:** Docker container that starts, loads config, and exits cleanly.
+
+**Verification:**
+- [ ] `python -m pytest tests/unit/test_config.py -v` passes
+- [ ] `python -m pytest tests/unit/test_models.py -v` passes
+- [ ] `docker build -t invoice-automation .` succeeds
+- [ ] `docker run --rm invoice-automation python -c "from src.config import Settings"` exits 0
 
 ---
 
@@ -55,13 +73,25 @@ This plan breaks the invoice automation service into phases with clear dependenc
 - [ ] Playwright-based HTML to PDF conversion
 - [ ] Accept HTML string, output PDF file
 - [ ] Async implementation
+- [ ] Browser lifecycle management:
+  - Lazy initialization (start browser on first use)
+  - Reuse browser instance across conversions
+  - Configurable timeout (default 30s)
+  - Graceful shutdown on service stop
+- [ ] Error handling: return None or raise on timeout/failure
 
 ### 2.4 Unit tests for Phase 2
-- [ ] Test parser with sample Jira timesheet PDF
-- [ ] Test merger with sample PDFs
+- [ ] Test parser with sample Jira timesheet PDF (`tests/fixtures/timesheet_sample.pdf`)
+- [ ] Test merger with sample PDFs (`tests/fixtures/invoice_sample.pdf`, etc.)
 - [ ] Test HTML to PDF conversion
+- [ ] Test browser timeout handling
 
 **Deliverable:** CLI tool to parse timesheet, merge PDFs, convert HTML.
+
+**Verification:**
+- [ ] `python -m src.pdf.parser tests/fixtures/timesheet_sample.pdf` outputs hours and date range
+- [ ] `python -m src.pdf.merger` with 3 sample PDFs produces valid merged PDF
+- [ ] `python -m src.pdf.html_to_pdf` converts sample HTML to PDF
 
 ---
 
@@ -83,7 +113,13 @@ This plan breaks the invoice automation service into phases with clear dependenc
 - [ ] "New timesheet" message with Approve/Edit/Cancel buttons
 - [ ] Handle button callbacks
 - [ ] Edit flow: ask for hours, recalculate, show updated message
+  - Validate input: must be positive integer, reasonable range (1-300)
+  - On invalid input: send error message, re-prompt
+  - Timeout for edit response: 5 minutes, then cancel edit mode
 - [ ] "All docs ready" message with Approve/Cancel buttons
+- [ ] Cancel handling:
+  - PENDING_INIT_APPROVAL + Cancel → return to IDLE, move PDF to `archive/cancelled/`
+  - ALL_DOCS_READY + Cancel → return to IDLE, archive all collected docs as cancelled
 
 ### 3.4 Error notifications
 - [ ] Send error messages with context
@@ -92,8 +128,15 @@ This plan breaks the invoice automation service into phases with clear dependenc
 ### 3.5 Unit tests for Phase 3
 - [ ] Test message formatting
 - [ ] Test callback handling (mocked)
+- [ ] Test input validation for edit flow
 
 **Deliverable:** Standalone bot that responds to commands and button presses.
+
+**Verification:**
+- [ ] Run bot, send `/start` command, verify response
+- [ ] Trigger test notification with inline buttons
+- [ ] Press each button type, verify callback handled
+- [ ] Test edit flow with valid and invalid inputs
 
 ---
 
@@ -105,6 +148,8 @@ This plan breaks the invoice automation service into phases with clear dependenc
 - [ ] OAuth 2.0 flow with user consent
 - [ ] Store/load refresh token
 - [ ] Auto-refresh access token
+- [ ] Proactive token refresh: check expiry before API calls, refresh if < 5 min remaining
+- [ ] Handle refresh token revocation: notify via Telegram, require manual re-auth
 
 ### 4.2 Email sender (`src/gmail/sender.py`)
 - [ ] Send email with attachment
@@ -112,11 +157,20 @@ This plan breaks the invoice automation service into phases with clear dependenc
 - [ ] Support TO and CC recipients
 
 ### 4.3 Email monitor (`src/gmail/monitor.py`)
-- [ ] Poll inbox for new emails (configurable interval)
+- [ ] Poll inbox for new emails (configurable interval, default 60s)
 - [ ] Filter by sender, CC, subject pattern
-- [ ] Extract email body, attachments
-- [ ] Extract thread ID for replies
+- [ ] Extract email body (HTML and plain text)
+- [ ] Extract thread ID for replies, store in WorkflowData
+- [ ] Attachment handling:
+  - Download PDF attachments to `data/temp/` directory
+  - Rename to `invoice_{timestamp}.pdf` for uniqueness
+  - Store path in `WorkflowData.invoice_pdf_path`
+  - Cleanup temp files after archiving
 - [ ] Mark emails as read after processing
+- [ ] Error handling:
+  - Gmail API rate limit (429): exponential backoff, max 5 retries
+  - Network error: retry with backoff, notify Telegram after 3 failures
+  - Auth error: trigger token refresh, notify if refresh fails
 
 ### 4.4 Email matching logic
 - [ ] Fuzzy keyword matching for approval emails
@@ -126,8 +180,16 @@ This plan breaks the invoice automation service into phases with clear dependenc
 - [ ] Test OAuth flow (manual one-time)
 - [ ] Test sending email (to self with alias)
 - [ ] Test receiving email (with alias filter)
+- [ ] Test attachment download
+- [ ] Test thread ID extraction
 
 **Deliverable:** Scripts to send test email, monitor inbox, detect approval/invoice.
+
+**Verification:**
+- [ ] Run auth script, complete OAuth flow, verify token.json created
+- [ ] Send test email with attachment, verify delivery
+- [ ] Start monitor, send email from alias, verify detection and thread ID capture
+- [ ] Verify PDF attachment downloaded to `data/temp/`
 
 ---
 
@@ -139,6 +201,11 @@ This plan breaks the invoice automation service into phases with clear dependenc
 - [ ] Initialize with API key
 - [ ] Async text generation
 - [ ] Structured output parsing (JSON)
+- [ ] Error handling with graceful degradation:
+  - API timeout (30s): return "uncertain" result
+  - API error (4xx/5xx): return "uncertain" result
+  - Rate limit: return "uncertain" result (no retry for LLM fallback)
+- [ ] When LLM unavailable: escalate to Telegram for manual classification
 
 ### 5.2 Email classification
 - [ ] Prompt for "Is this an approval email?"
@@ -151,8 +218,15 @@ This plan breaks the invoice automation service into phases with clear dependenc
 ### 5.4 Unit tests for Phase 5
 - [ ] Test with sample email texts
 - [ ] Test with sample invoice text extracts
+- [ ] Test error handling (mocked API failures)
+- [ ] Test graceful degradation returns "uncertain"
 
 **Deliverable:** LLM helper functions for classification tasks.
+
+**Verification:**
+- [ ] Run classification on sample approval email, verify yes/no response
+- [ ] Run classification on sample non-approval email, verify correct response
+- [ ] Simulate API timeout, verify "uncertain" returned without crash
 
 ---
 
@@ -163,14 +237,18 @@ This plan breaks the invoice automation service into phases with clear dependenc
 ### 6.1 Watcher (`src/watcher.py`)
 - [ ] Watch configured folder using watchdog
 - [ ] Detect new PDF files
-- [ ] Debounce rapid changes (file still being written)
-- [ ] Emit events to workflow coordinator
+- [ ] Debounce rapid changes: wait 2 seconds after last modification before emitting
+- [ ] Emit events to workflow coordinator via async queue
 
 ### 6.2 Unit tests for Phase 6
 - [ ] Test file detection
-- [ ] Test debouncing
+- [ ] Test debouncing (rapid writes coalesce to single event)
 
 **Deliverable:** Watcher that logs new PDF detections.
+
+**Verification:**
+- [ ] Start watcher on test folder, drop PDF, verify event logged within 3 seconds
+- [ ] Copy large PDF slowly, verify single event after file complete (not multiple)
 
 ---
 
@@ -186,14 +264,29 @@ This plan breaks the invoice automation service into phases with clear dependenc
 ### 7.2 State machine
 - [ ] IDLE: Wait for folder watcher event
 - [ ] PENDING_INIT_APPROVAL: Parse PDF, send Telegram message, wait for approval
+  - Approve → transition to WAITING_DOCS
+  - Edit → stay in state, update hours, resend message
+  - Cancel → archive PDF to `cancelled/`, transition to IDLE
 - [ ] WAITING_DOCS: Send emails, track approval_received/invoice_received flags
+  - Set `waiting_since` timestamp on entry
+  - Timeout check: if waiting > 7 days, send Telegram reminder
+  - Timeout check: if waiting > 14 days, send daily reminders
+  - Manual override: add "Cancel workflow" button to reminder messages
+  - On both received → transition to ALL_DOCS_READY
 - [ ] ALL_DOCS_READY: Merge PDFs, send Telegram message, wait for approval
+  - Approve → transition to COMPLETE
+  - Cancel → archive all docs to `cancelled/`, transition to IDLE
 - [ ] COMPLETE: Send final email, archive files, return to IDLE
 
 ### 7.3 Event handlers
 - [ ] Handle folder watcher events
 - [ ] Handle Telegram button callbacks
 - [ ] Handle Gmail monitor events (new email detected)
+- [ ] Concurrency handling:
+  - Single asyncio.Queue for all events
+  - Process events sequentially (one at a time)
+  - Lock state during transitions to prevent race conditions
+  - Log and discard duplicate/stale events (e.g., approval after cancel)
 
 ### 7.4 Archiving
 - [ ] Move all files to archive folder (configurable)
@@ -202,8 +295,18 @@ This plan breaks the invoice automation service into phases with clear dependenc
 ### 7.5 Integration tests for Phase 7
 - [ ] Test state transitions with mocked components
 - [ ] Test state persistence across restarts
+- [ ] Test Cancel transitions from each cancellable state
+- [ ] Test timeout reminders at 7 and 14 days (with mocked time)
+- [ ] Test concurrent event handling (no race conditions)
 
 **Deliverable:** Workflow that responds to events and persists state.
+
+**Verification:**
+- [ ] Start in IDLE, inject folder event, verify transition to PENDING_INIT_APPROVAL
+- [ ] Inject approval, verify transition to WAITING_DOCS
+- [ ] Kill process, restart, verify state restored from JSON
+- [ ] Test Cancel at PENDING_INIT_APPROVAL, verify PDF archived to `cancelled/`
+- [ ] Inject rapid events, verify sequential processing without errors
 
 ---
 
@@ -225,6 +328,12 @@ This plan breaks the invoice automation service into phases with clear dependenc
 - [ ] Verify container starts correctly
 - [ ] Verify volume mounts work
 - [ ] Verify env vars loaded
+- [ ] Volume permissions:
+  - `/watch` mount: read-only (`:ro`)
+  - `/archive` mount: read-write, ensure container user can write
+  - `/app/data` mount: read-write for state.json and temp files
+  - `/app/config` mount: read-only for credentials
+- [ ] Create `data/temp/` directory on startup if missing
 
 ### 8.3 End-to-end manual test
 - [ ] Drop test PDF
@@ -233,6 +342,13 @@ This plan breaks the invoice automation service into phases with clear dependenc
 - [ ] Verify emails sent
 
 **Deliverable:** Running service in Docker.
+
+**Verification:**
+- [ ] `docker-compose up -d` starts without errors
+- [ ] `docker-compose logs` shows "Service started, watching folder..."
+- [ ] Container can write to `data/state.json`
+- [ ] Container can write to archive folder
+- [ ] Container can read from watch folder
 
 ---
 
