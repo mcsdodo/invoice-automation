@@ -9,6 +9,8 @@
 
 This allows the bot to receive all messages (needed for the "Edit Hours" flow).
 
+**Debug menu**: Set `TELEGRAM_DEBUG_MENU=true` in `.env` to enable test buttons.
+
 ## Google Gmail API Setup
 
 1. Create a project in Google Cloud Console
