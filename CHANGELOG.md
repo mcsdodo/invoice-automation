@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Configurable email poll interval via `GMAIL_POLL_INTERVAL` env var (default 60s)
 - Persistent Telegram debug keyboard with 5 buttons for remote testing:
   - Status: show current workflow state
   - Drop Test PDF: create 160h test timesheet in watch folder
