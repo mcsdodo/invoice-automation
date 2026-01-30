@@ -97,6 +97,10 @@ invoice-automation/
 ├── config/
 │   ├── credentials.json     # Gmail OAuth credentials (gitignored)
 │   └── token.json           # Gmail refresh token (gitignored)
+├── scripts/
+│   ├── test_gemini.py       # Verify Gemini API credentials
+│   ├── test_gmail.py        # Verify Gmail OAuth (creates token.json)
+│   └── test_telegram.py     # Verify Telegram bot credentials
 └── tests/
     ├── conftest.py
     ├── fixtures/
@@ -123,32 +127,40 @@ docker-compose build && docker-compose up -d
 docker-compose down
 ```
 
+### Local Development (venv)
+
+**Always use the virtual environment** - never install packages globally.
+
+```bash
+# Create virtual environment (first time only)
+python -m venv .venv
+
+# Install dependencies
+.venv/Scripts/pip install -r requirements.txt   # Windows
+.venv/bin/pip install -r requirements.txt       # Linux/Mac
+
+# Run scripts
+.venv/Scripts/python scripts/test_gmail.py      # Windows
+.venv/bin/python scripts/test_gmail.py          # Linux/Mac
+
+# Run main app
+.venv/Scripts/python -m src.main                # Windows
+
+# Install playwright browsers (for HTML→PDF)
+.venv/Scripts/playwright install chromium       # Windows
+```
+
 ### Testing
 
 ```bash
 # Run all tests
-python -m pytest -v
+.venv/Scripts/python -m pytest -v
 
 # Run unit tests only
-python -m pytest tests/unit/ -v
+.venv/Scripts/python -m pytest tests/unit/ -v
 
 # Run with coverage
-python -m pytest --cov=src --cov-report=term-missing
-```
-
-### Development without Docker
-
-```bash
-# Create virtual environment
-python -m venv .venv
-source .venv/bin/activate  # or .venv\Scripts\activate on Windows
-
-# Install dependencies
-pip install -r requirements.txt
-playwright install chromium
-
-# Run
-python -m src.main
+.venv/Scripts/python -m pytest --cov=src --cov-report=term-missing
 ```
 
 ## Environment Variables

@@ -1,0 +1,28 @@
+# Core
+pydantic>=2.0
+pydantic-settings>=2.0
+python-dotenv>=1.0
+
+# Gmail
+google-api-python-client>=2.100
+google-auth-oauthlib>=1.1
+google-auth-httplib2>=0.1
+
+# Telegram
+python-telegram-bot>=21.0
+
+# PDF
+pdfplumber>=0.10
+pypdf>=4.0
+playwright>=1.40
+
+# LLM
+google-generativeai>=0.8
+
+# Folder watching
+watchdog>=4.0
+
+# Testing
+pytest>=8.0
+pytest-asyncio>=0.23
+pytest-cov>=4.0
