@@ -27,6 +27,7 @@ class Settings(BaseSettings):
     telegram_bot_token: str
     telegram_bot_name: str = "InvoiceBot"
     telegram_chat_id: int
+    telegram_debug_menu: bool = False  # Show debug keyboard with test buttons
 
     # Email addresses
     from_email: str

@@ -126,14 +126,20 @@ class TelegramBot:
         # Start polling in background
         await self._app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
 
-        # Send startup message with debug keyboard
-        await self._app.bot.send_message(
-            chat_id=self._chat_id,
-            text="🤖 Bot started. Debug menu active.",
-            reply_markup=DEBUG_KEYBOARD,
-        )
-
-        logger.info("Telegram bot initialized with debug keyboard")
+        # Send startup message (with debug keyboard if enabled)
+        if settings.telegram_debug_menu:
+            await self._app.bot.send_message(
+                chat_id=self._chat_id,
+                text="🤖 Bot started. Debug menu active.",
+                reply_markup=DEBUG_KEYBOARD,
+            )
+            logger.info("Telegram bot initialized with debug keyboard")
+        else:
+            await self._app.bot.send_message(
+                chat_id=self._chat_id,
+                text="🤖 Bot started.",
+            )
+            logger.info("Telegram bot initialized")
 
     async def shutdown(self) -> None:
         """Shutdown the bot gracefully."""
