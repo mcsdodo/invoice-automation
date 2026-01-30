@@ -13,6 +13,7 @@ services:
       - GMAIL_CREDENTIALS_FILE=/app/config/credentials.json
       - GMAIL_TOKEN_FILE=/app/config/token.json
       - GMAIL_POLL_INTERVAL=10
+      - TELEGRAM_DEBUG_MENU=true
     ports:
       # OAuth callback port (only needed for initial auth)
       - "8080:8080"
