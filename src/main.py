@@ -108,17 +108,45 @@ class InvoiceAutomationService:
             logger.info("Folder watcher task cancelled")
 
     async def _run_gmail_monitor(self) -> None:
-        """Monitor Gmail for incoming emails."""
+        """Monitor Gmail for incoming emails by checking specific threads."""
         try:
+            # Track which messages we've already processed
+            processed_message_ids: set[str] = set()
+
             while not self._shutdown_event.is_set():
                 try:
-                    # Check for emails from manager and accountant
-                    for from_email in [settings.manager_email, settings.accountant_email]:
-                        emails = await self.gmail_monitor.check_for_emails(
-                            from_email=from_email
+                    # Only check when in WAITING_DOCS state
+                    if self.workflow.data.state.value != "WAITING_DOCS":
+                        await asyncio.sleep(10)
+                        continue
+
+                    # Check manager thread for approval
+                    if (
+                        self.workflow.data.manager_thread_id
+                        and not self.workflow.data.approval_received
+                    ):
+                        emails = await self._check_thread_for_replies(
+                            self.workflow.data.manager_thread_id,
+                            processed_message_ids,
                         )
                         for email in emails:
-                            logger.info(f"Email received from: {email.from_email}")
+                            logger.info(f"Reply in manager thread from: {email.from_email}")
+                            await self.workflow.handle_event({
+                                "type": "email_received",
+                                "email": email,
+                            })
+
+                    # Check accountant thread for invoice
+                    if (
+                        self.workflow.data.accountant_thread_id
+                        and not self.workflow.data.invoice_received
+                    ):
+                        emails = await self._check_thread_for_replies(
+                            self.workflow.data.accountant_thread_id,
+                            processed_message_ids,
+                        )
+                        for email in emails:
+                            logger.info(f"Reply in accountant thread from: {email.from_email}")
                             await self.workflow.handle_event({
                                 "type": "email_received",
                                 "email": email,
@@ -133,6 +161,52 @@ class InvoiceAutomationService:
 
         except asyncio.CancelledError:
             logger.info("Gmail monitor task cancelled")
+
+    async def _check_thread_for_replies(
+        self, thread_id: str, processed_ids: set[str]
+    ) -> list:
+        """Check a thread for new replies (messages we didn't send)."""
+        from src.models import EmailInfo
+
+        try:
+            service = self.gmail_monitor.service
+            thread = service.users().threads().get(
+                userId="me", id=thread_id
+            ).execute()
+
+            replies = []
+            messages = thread.get("messages", [])
+
+            for msg in messages:
+                msg_id = msg["id"]
+                # Skip if already processed
+                if msg_id in processed_ids:
+                    continue
+
+                # Check if this is a reply (not our original sent message)
+                labels = msg.get("labelIds", [])
+                # If it has SENT label but not INBOX, it's our outgoing message
+                if "SENT" in labels and "INBOX" not in labels:
+                    processed_ids.add(msg_id)
+                    continue
+
+                # Parse the message
+                email_info = self.gmail_monitor._parse_message(msg)
+                processed_ids.add(msg_id)
+
+                # Skip if it's from us (the sender account)
+                if email_info.from_email.lower() == settings.from_email.lower():
+                    # But only if it doesn't have INBOX label (meaning it's a reply TO us)
+                    if "INBOX" in labels:
+                        replies.append(email_info)
+                else:
+                    replies.append(email_info)
+
+            return replies
+
+        except Exception as e:
+            logger.error(f"Error checking thread {thread_id}: {e}")
+            return []
 
     async def _wait_for_shutdown(self) -> None:
         """Wait for shutdown signal."""

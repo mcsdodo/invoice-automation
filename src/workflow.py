@@ -214,13 +214,58 @@ class WorkflowCoordinator:
             logger.debug(f"Ignoring email, not in WAITING_DOCS state")
             return
 
-        # Check if it's from manager (approval)
-        if email.from_email.lower() == settings.manager_email.lower():
+        # Check by thread ID (more reliable than FROM for Gmail aliases)
+        if self.data.manager_thread_id and email.thread_id == self.data.manager_thread_id:
             await self._check_approval_email(email)
-
-        # Check if it's from accountant (invoice)
+        elif self.data.accountant_thread_id and email.thread_id == self.data.accountant_thread_id:
+            await self._check_invoice_email(email)
+        # Fallback: check FROM address
+        elif email.from_email.lower() == settings.manager_email.lower():
+            await self._check_approval_email(email)
         elif email.from_email.lower() == settings.accountant_email.lower():
             await self._check_invoice_email(email)
+
+    def _format_email_as_html(self, email: EmailInfo) -> str:
+        """Format an email as full HTML with headers (like Gmail view)."""
+        body_content = email.body_html if email.body_html else f"<pre>{email.body_text}</pre>"
+
+        # Build recipient list
+        to_list = ", ".join(email.to_emails) if email.to_emails else ""
+        cc_list = ", ".join(email.cc_emails) if email.cc_emails else ""
+
+        html = f"""<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <style>
+        body {{ font-family: Arial, sans-serif; margin: 20px; }}
+        .email-header {{ background: #f5f5f5; padding: 15px; border-radius: 5px; margin-bottom: 20px; }}
+        .email-header h2 {{ margin: 0 0 15px 0; color: #333; }}
+        .header-row {{ margin: 5px 0; font-size: 14px; }}
+        .header-label {{ color: #666; display: inline-block; width: 50px; }}
+        .header-value {{ color: #333; }}
+        .email-body {{ padding: 15px; line-height: 1.5; }}
+    </style>
+</head>
+<body>
+    <div class="email-header">
+        <h2>{email.subject}</h2>
+        <div class="header-row">
+            <span class="header-label">From:</span>
+            <span class="header-value">{email.from_email}</span>
+        </div>
+        <div class="header-row">
+            <span class="header-label">To:</span>
+            <span class="header-value">{to_list}</span>
+        </div>
+        {"<div class='header-row'><span class='header-label'>Cc:</span><span class='header-value'>" + cc_list + "</span></div>" if cc_list else ""}
+    </div>
+    <div class="email-body">
+        {body_content}
+    </div>
+</body>
+</html>"""
+        return html
 
     async def _check_approval_email(self, email: EmailInfo) -> None:
         """Check if email is an approval."""
@@ -242,7 +287,8 @@ class WorkflowCoordinator:
 
         if is_approval:
             self.data.approval_received = True
-            self.data.approval_email_html = email.body_html or email.body_text
+            # Store full email with headers as HTML
+            self.data.approval_email_html = self._format_email_as_html(email)
             self._save_state()
             await self.bot.send_message("✅ Manager approval received!")
             await self._check_all_docs_ready()
