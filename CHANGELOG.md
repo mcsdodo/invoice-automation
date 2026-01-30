@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implementation plan with 10 phases covering full invoice automation workflow
 - Plan review document with iterative quality assessment
 - Parallelization strategy showing phases 2-6 can be developed independently
+- Infrastructure setup with verified credentials (Gemini, Gmail OAuth, Telegram)
+- `requirements.txt` with all project dependencies
+- `.env.example` with all configuration options
+- Credential verification scripts in `scripts/` directory
+- Virtual environment (venv) setup instructions in CLAUDE.md
 
 ### Changed
 - Expanded WorkflowData model with thread IDs, attachment paths, and timeout tracking
