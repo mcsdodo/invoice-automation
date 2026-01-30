@@ -15,7 +15,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `requirements.txt` with all project dependencies
 - `.env.example` with all configuration options
 - Credential verification scripts in `scripts/` directory
-- Test scripts: `create_test_timesheet.py`, `check_approval_email.py`
+- Docker setup: `Dockerfile` and `docker-compose.yml`
+- Interactive test scripts for manual workflow testing:
+  - `00_check_status.py` - Show workflow state
+  - `01_drop_timesheet.py` - Create test timesheet
+  - `02_send_approval.py` - Send approval email
+  - `03_send_invoice.py` - Send invoice with PDF
+  - `99_reset.py` - Reset for fresh test
 - Virtual environment (venv) setup instructions in CLAUDE.md
 - Full implementation of invoice automation service:
   - `src/config.py` - Pydantic settings with environment variables
