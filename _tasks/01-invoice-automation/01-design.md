@@ -150,7 +150,7 @@ State persisted to JSON file, survives restarts.
 
 1. Filter: FROM = MANAGER_EMAIL
 2. Filter: CC contains INVOICING_DEPT_EMAIL
-3. Filter: In reply to our "YourCompany inc. faktura MM/YYYY" thread
+3. Filter: In reply to our "{company_name} faktura MM/YYYY" thread
 4. Check body: fuzzy match against APPROVAL_KEYWORDS
    - If match → approval confirmed
    - If no match → call Gemini LLM: "Is this email approving a timesheet?"
@@ -160,7 +160,7 @@ State persisted to JSON file, survives restarts.
 ### Accountant Invoice Email
 
 1. Filter: FROM = ACCOUNTANT_EMAIL
-2. Filter: In reply to our "YourCompany inc. - podklady ku vystaveniu faktur MM/YYYY" thread
+2. Filter: In reply to our "{company_name} - podklady ku vystaveniu faktur MM/YYYY" thread
 3. Filter: Has PDF attachment
 4. Extract text from PDF
 5. Check: contains "faktúra" or "invoice", has invoice number pattern, has total amount
@@ -174,14 +174,14 @@ State persisted to JSON file, survives restarts.
 ### Email to Manager + Invoicing (with timesheet)
 
 - **To:** MANAGER_EMAIL, INVOICING_DEPT_EMAIL
-- **Subject:** `YourCompany inc. faktura MM/YYYY`
+- **Subject:** `{company_name} faktura MM/YYYY`
 - **Body:** `Ahoj, v prilohe worklog na schvalenie`
 - **Attachment:** timesheet PDF
 
 ### Email to Accountant (invoice request)
 
 - **To:** ACCOUNTANT_EMAIL
-- **Subject:** `YourCompany inc. - podklady ku vystaveniu faktur MM/YYYY`
+- **Subject:** `{company_name} - podklady ku vystaveniu faktur MM/YYYY`
 - **Body:**
   ```
   za {month} prosim takto:
@@ -396,7 +396,7 @@ tests/
 - Simulates button presses programmatically via Telegram API
 - Sends/receives real emails but automated end-to-end
 - Runs without human interaction
-- Each test run uses unique subject prefix: `[TEST-abc123] YourCompany inc. faktura...`
+- Each test run uses unique subject prefix: `[TEST-abc123] {company_name} faktura...`
 - Cleanup after tests: delete test emails, clear test folders
 
 ### Interactive Integration Tests

@@ -199,7 +199,7 @@ async def _handle_debug_drop_pdf(self) -> None:
 
         c.setFont("Helvetica", 12)
         c.drawString(50, height - 80, "Period: 01/Jan/26 - 31/Jan/26")
-        c.drawString(50, height - 110, "Project: YourCompany inc. Navigation App")
+        c.drawString(50, height - 110, f"Project: {settings.company_name} Navigation App")
 
         c.setFont("Helvetica-Bold", 14)
         c.drawString(50, height - 160, f"Total: {total_hours}h")

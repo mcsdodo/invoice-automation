@@ -36,6 +36,7 @@ class Settings(BaseSettings):
     accountant_email: str
 
     # Invoice settings
+    company_name: str = "YourCompany inc."
     hourly_rate: int = 10
     currency: str = "EUR"
 

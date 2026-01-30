@@ -205,7 +205,7 @@ class WorkflowCoordinator:
 
         try:
             # Email to manager + invoicing
-            subject = f"YourCompany inc. faktura {info.month:02d}/{info.year}"
+            subject = f"{settings.company_name} faktura {info.month:02d}/{info.year}"
             body = "Ahoj, v prilohe worklog na schvalenie"
 
             msg_id, thread_id = await asyncio.to_thread(
@@ -221,7 +221,7 @@ class WorkflowCoordinator:
 
             # Email to accountant
             total = info.total_hours * settings.hourly_rate
-            acc_subject = f"YourCompany inc. - podklady ku vystaveniu faktur {info.month:02d}/{info.year}"
+            acc_subject = f"{settings.company_name} - podklady ku vystaveniu faktur {info.month:02d}/{info.year}"
             acc_body = (
                 f"za {info.month_name} prosim takto:\n"
                 f"{info.total_hours}*{settings.hourly_rate}={total} bez DPH\n\n"
