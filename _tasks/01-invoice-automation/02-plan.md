@@ -409,33 +409,46 @@ This plan breaks the invoice automation service into phases with clear dependenc
 ## Dependencies Graph
 
 ```
-Phase 1 (Foundation)
-    ↓
-Phase 2 (PDF) ←──────────────────────┐
-    ↓                                │
-Phase 3 (Telegram)                   │
-    ↓                                │
-Phase 4 (Gmail)                      │
-    ↓                                │
-Phase 5 (LLM)                        │
-    ↓                                │
-Phase 6 (Watcher)                    │
-    ↓                                │
-Phase 7 (Workflow) ──────────────────┘
-    ↓
-Phase 8 (Integration)
-    ↓
-Phase 9 (Testing)
-    ↓
+                      Phase 1 (Foundation)
+                              │
+          ┌─────────┬─────────┼─────────┬─────────┐
+          ▼         ▼         ▼         ▼         ▼
+       Phase 2   Phase 3   Phase 4   Phase 5   Phase 6
+        (PDF)   (Telegram) (Gmail)   (LLM)    (Watcher)
+          │         │         │         │         │
+          └─────────┴─────────┴────┬────┴─────────┘
+                                   ▼
+                        Phase 7 (Workflow)
+                                   │
+                                   ▼
+                        Phase 8 (Integration)
+                                   │
+                                   ▼
+                         Phase 9 (Testing)
+                                   │
+                                   ▼
 Phase 10 (Docs & Cleanup)
 ```
 
 ## Implementation Notes
 
+- **Phases 2-6 are parallelizable** - After Phase 1, these 5 modules can be developed independently
 - **Test each phase before moving on** - Don't accumulate untested code
 - **Start with happy path** - Error handling can be refined later
 - **Use structured logging** - Will help debugging in production
 - **Keep async consistent** - All I/O operations should be async
+
+## Parallelization Strategy
+
+| Step | Phases | Can Parallelize? |
+|------|--------|------------------|
+| 1 | Phase 1 (Foundation) | No - required by all |
+| 2 | Phases 2, 3, 4, 5, 6 | **Yes - 5 independent modules** |
+| 3 | Phase 7 (Workflow) | No - needs all of 2-6 |
+| 4 | Phase 8 (Integration) | No - needs 7 |
+| 5 | Phases 9, 10 | No - sequential |
+
+**Optimal with parallel agents:** Complete in 5 steps instead of 10 sequential phases.
 
 ## Estimated Complexity
 
