@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Playwright Chromium missing shared libraries in Docker (libxfixes3, etc.)
 - OAuth flow not working in Docker (added custom callback handler)
 - File watcher not detecting files through Docker bind mounts (PollingObserver)
-- Email detection processing old/sent messages (UNREAD filter, mark-as-read)
+- Email reply detection simplified - uses thread ID tracking, workflow flags prevent re-processing
 - Telegram "message too long" errors (truncate exception messages)
 - Telegram markdown parsing errors (simplified messages, removed file paths)
 - Duplicate "new timesheet" messages on restart (move to temp folder)
