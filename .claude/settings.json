@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(docker-compose *)",
+      "Bash(docker *)",
+      "Bash(git *)",
+      "Bash(python *)",
+      "Bash(pip *)",
+      "Bash(pytest *)",
+      "Bash(curl *)",
+      "Bash(bash *)",
+      "Bash(MSYS_NO_PATHCONV=1 *)",
+      "WebSearch",
+      "WebFetch",
+      "mcp__context7__*",
+      "mcp__playwright__*",
+      "Skill(superpowers:*)",
+      "Skill(changelog-skill)",
+      "Skill(code-review-skill)",
+      "Skill(test-review-skill)",
+      "Skill(plan-review-skill)"
+    ],
+    "deny": [],
+    "ask": []
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash .claude/hooks/post-commit-reminder.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ]
+  }
+}
