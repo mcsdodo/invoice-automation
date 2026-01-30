@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - `requirements.txt` with all project dependencies
 - `.env.example` with all configuration options
 - Credential verification scripts in `scripts/` directory
+- Test scripts: `create_test_timesheet.py`, `check_approval_email.py`
 - Virtual environment (venv) setup instructions in CLAUDE.md
 - Full implementation of invoice automation service:
   - `src/config.py` - Pydantic settings with environment variables
@@ -28,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `src/main.py` - Main entry point wiring all components
 
 ### Changed
+- Email monitor now checks threads by ID instead of polling for unread emails
+- Approval email formatted as full HTML with headers (From, To, Subject) for PDF
 - Expanded WorkflowData model with thread IDs, attachment paths, and timeout tracking
 - Added Cancel state transitions for PENDING_INIT_APPROVAL and ALL_DOCS_READY states
 - Added WAITING_DOCS timeout handling with 7/14-day reminders
