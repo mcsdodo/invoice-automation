@@ -16,10 +16,14 @@ graph TD
 ### Workflow Steps
 
 1. **IDLE** → Drop a Jira timesheet PDF into the watch folder
-2. **PENDING_INIT_APPROVAL** → Bot parses hours, asks for Telegram approval
-3. **WAITING_DOCS** → Emails sent to manager (for approval) and accountant (for invoice)
-4. **ALL_DOCS_READY** → Both responses received, asks for final Telegram approval
-5. **COMPLETE** → Merges invoice + timesheet + approval email into one PDF, sends it, archives files
+2. **PENDING_INIT_APPROVAL** → Bot parses total hours from the timesheet, calculates invoice amount, and asks for Telegram approval
+3. **WAITING_DOCS** → Two emails sent in parallel:
+   - To **manager** (cc: invoicing dept): timesheet attached, requesting approval
+   - To **accountant**: total hours and breakdown, so they can generate the invoice
+4. **ALL_DOCS_READY** → Both responses received (manager's approval email + accountant's invoice PDF), asks for final Telegram approval
+5. **COMPLETE** → Merges invoice + timesheet + approval email into one PDF, sends it to the manager thread, archives files
+
+The accountant handles official invoice generation - we just provide them with the hours breakdown. Once they send back the invoice PDF and the manager approves the timesheet, we combine everything into a single document.
 
 State is persisted to disk - the service can restart without losing progress.
 
