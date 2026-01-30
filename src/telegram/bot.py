@@ -11,6 +11,7 @@ from telegram import (
     InlineKeyboardMarkup,
     KeyboardButton,
     ReplyKeyboardMarkup,
+    ReplyKeyboardRemove,
     Update,
 )
 from telegram.ext import (
@@ -138,6 +139,7 @@ class TelegramBot:
             await self._app.bot.send_message(
                 chat_id=self._chat_id,
                 text="🤖 Bot started.",
+                reply_markup=ReplyKeyboardRemove(),
             )
             logger.info("Telegram bot initialized")
 

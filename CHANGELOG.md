@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 - Configurable email poll interval via `GMAIL_POLL_INTERVAL` env var (default 60s)
+- Debug keyboard toggleable via `TELEGRAM_DEBUG_MENU` env var (default false)
 - Persistent Telegram debug keyboard with 5 buttons for remote testing:
   - Status: show current workflow state
   - Drop Test PDF: create 160h test timesheet in watch folder
@@ -36,6 +37,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reduced default log level to WARNING, app loggers at INFO
 - Gmail API scopes now use granular permissions instead of full access
 - Docker compose adds OAuth callback port (8080) and environment overrides
+- README updated with Telegram privacy mode instructions for group chats
 
 ### Added (previous)
 - Implementation plan with 10 phases covering full invoice automation workflow
