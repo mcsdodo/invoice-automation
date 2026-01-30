@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- Workflow state diagram in README (Mermaid flowchart)
+- Workflow state diagram and detailed workflow description in README
 - Configurable email poll interval via `GMAIL_POLL_INTERVAL` env var (default 60s)
 - Debug keyboard toggleable via `TELEGRAM_DEBUG_MENU` env var (default false)
 - Persistent Telegram debug keyboard with 5 buttons for remote testing:
