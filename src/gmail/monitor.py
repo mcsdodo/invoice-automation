@@ -33,24 +33,24 @@ class GmailMonitor:
     and downloads PDF attachments.
 
     Attributes:
-        poll_interval: Seconds between inbox polls (default 60).
+        poll_interval: Seconds between inbox polls (from GMAIL_POLL_INTERVAL env).
         service: Authenticated Gmail API service.
     """
 
     def __init__(
         self,
-        poll_interval: int = 60,
+        poll_interval: int | None = None,
         service: Resource | None = None,
         temp_dir: Path | None = None,
     ):
         """Initialize the Gmail monitor.
 
         Args:
-            poll_interval: Seconds between inbox polls.
+            poll_interval: Seconds between inbox polls (default from settings).
             service: Gmail API service (created if not provided).
             temp_dir: Directory for downloaded attachments (default data/temp).
         """
-        self.poll_interval = poll_interval
+        self.poll_interval = poll_interval or settings.gmail_poll_interval
         self._service = service
         self._temp_dir = temp_dir or Path("data/temp")
         self._last_history_id: str | None = None

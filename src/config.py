@@ -41,6 +41,9 @@ class Settings(BaseSettings):
     # LLM
     gemini_api_key: str
 
+    # Email monitoring
+    gmail_poll_interval: int = 60  # Seconds between email checks
+
     # Email matching
     approval_keywords: str = "approved,schvalene,schvalujem,suhlasim,ok,v poriadku"
 
