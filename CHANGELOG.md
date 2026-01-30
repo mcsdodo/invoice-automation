@@ -8,6 +8,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Workflow state recovery on restart - re-sends Telegram approval messages
+- `/reset` Telegram command for runtime workflow reset
+- OAuth callback server for Docker environments (custom WSGI handler)
+- Startup scan for existing PDF files in watch folder
+- Tech debt documentation for OAuth Docker workarounds
+
+### Fixed
+- Playwright Chromium missing shared libraries in Docker (libxfixes3, etc.)
+- OAuth flow not working in Docker (added custom callback handler)
+- File watcher not detecting files through Docker bind mounts (PollingObserver)
+- Email detection processing old/sent messages (UNREAD filter, mark-as-read)
+- Telegram "message too long" errors (truncate exception messages)
+- Telegram markdown parsing errors (simplified messages, removed file paths)
+- Duplicate "new timesheet" messages on restart (move to temp folder)
+
+### Changed
+- Timesheet now moved to `data/temp/` when first processed (clears watch folder)
+- Reduced default log level to WARNING, app loggers at INFO
+- Gmail API scopes now use granular permissions instead of full access
+- Docker compose adds OAuth callback port (8080) and environment overrides
+
+### Added (previous)
 - Implementation plan with 10 phases covering full invoice automation workflow
 - Plan review document with iterative quality assessment
 - Parallelization strategy showing phases 2-6 can be developed independently
