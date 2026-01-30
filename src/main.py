@@ -187,7 +187,13 @@ class InvoiceAutomationService:
             logger.info("Gmail monitor task cancelled")
 
     async def _check_thread_for_replies(self, thread_id: str) -> list:
-        """Check a thread for new UNREAD replies (not our sent messages)."""
+        """Check a thread for replies (any message after the initial sent message).
+
+        We don't need UNREAD filter because:
+        - approval_received/invoice_received flags prevent re-checking threads
+        - Once a reply is found and processed, the flag is set True
+        - Thread is never checked again after that
+        """
         from src.models import EmailInfo
 
         try:
@@ -201,27 +207,14 @@ class InvoiceAutomationService:
 
             for msg in messages:
                 msg_id = msg["id"]
-                labels = msg.get("labelIds", [])
 
-                # Skip the initial sent message (msg_id == thread_id)
+                # Skip the initial sent message (first message in thread)
                 if msg_id == thread_id:
                     continue
 
-                # Only process UNREAD messages in INBOX
-                if "UNREAD" not in labels or "INBOX" not in labels:
-                    continue
-
-                # Parse the message
+                # Any other message is a reply - parse it
                 email_info = self.gmail_monitor._parse_message(msg)
                 replies.append(email_info)
-
-                # Mark as read
-                service.users().messages().modify(
-                    userId="me",
-                    id=msg_id,
-                    body={"removeLabelIds": ["UNREAD"]}
-                ).execute()
-                logger.info(f"Marked message {msg_id} as read")
 
             return replies
 
