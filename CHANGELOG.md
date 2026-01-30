@@ -8,6 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Persistent Telegram debug keyboard with 5 buttons for remote testing:
+  - Status: show current workflow state
+  - Drop Test PDF: create 160h test timesheet in watch folder
+  - Send Approval: send approval email to manager thread
+  - Send Invoice: send invoice email with PDF attachment
+  - Reset: reset workflow to IDLE state
+- `reportlab` dependency for PDF generation in debug handlers
 - Workflow state recovery on restart - re-sends Telegram approval messages
 - `/reset` Telegram command for runtime workflow reset
 - OAuth callback server for Docker environments (custom WSGI handler)
