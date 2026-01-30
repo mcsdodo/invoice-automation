@@ -16,8 +16,12 @@ from src.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Gmail API scope for full access
-SCOPES = ["https://mail.google.com/"]
+# Gmail API scopes - must match what test_gmail.py uses
+SCOPES = [
+    "https://www.googleapis.com/auth/gmail.send",
+    "https://www.googleapis.com/auth/gmail.readonly",
+    "https://www.googleapis.com/auth/gmail.modify",
+]
 
 # Minimum remaining token lifetime before proactive refresh (5 minutes)
 MIN_TOKEN_LIFETIME_SECONDS = 300
@@ -90,13 +94,49 @@ def _run_oauth_flow(credentials_path: Path) -> Credentials:
             "Download from Google Cloud Console."
         )
 
-    logger.info("Starting OAuth flow...")
+    import sys
+    from wsgiref.simple_server import make_server
+    import threading
+
+    port = settings.oauth_callback_port
+    host = settings.oauth_callback_host
+
     flow = InstalledAppFlow.from_client_secrets_file(
         str(credentials_path), SCOPES
     )
-    creds = flow.run_local_server(port=0)
-    logger.info("OAuth flow completed successfully")
-    return creds
+    flow.redirect_uri = f"http://{host}:{port}/"
+
+    # Generate auth URL with state
+    auth_url, state = flow.authorization_url(access_type="offline", prompt="consent")
+
+    logger.warning("=" * 60)
+    logger.warning("OAUTH AUTHENTICATION REQUIRED")
+    logger.warning("=" * 60)
+    logger.warning(f"Open this URL in your browser:")
+    logger.warning(auth_url)
+    logger.warning("=" * 60)
+    logger.warning(f"Waiting for callback on http://{host}:{port}/ ...")
+    sys.stdout.flush()
+    sys.stderr.flush()
+
+    # Simple WSGI app to capture the callback
+    authorization_response = [None]
+
+    def wsgi_app(environ, start_response):
+        from urllib.parse import urlunsplit
+        query = environ.get("QUERY_STRING", "")
+        authorization_response[0] = f"http://{host}:{port}/?{query}"
+        start_response("200 OK", [("Content-Type", "text/html")])
+        return [b"<html><body><h1>Authorization successful!</h1><p>You can close this window.</p></body></html>"]
+
+    # Start server
+    server = make_server("0.0.0.0", port, wsgi_app)
+    server.handle_request()  # Handle single request
+
+    # Exchange code for token
+    flow.fetch_token(authorization_response=authorization_response[0])
+    logger.warning("OAuth flow completed successfully!")
+    return flow.credentials
 
 
 def get_credentials() -> Credentials:

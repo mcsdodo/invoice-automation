@@ -13,15 +13,18 @@ from src.gmail.monitor import GmailMonitor
 from src.llm.gemini import GeminiClient
 from src.workflow import WorkflowCoordinator
 
-# Configure logging
+# Configure logging - WARNING level to reduce noise
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
     handlers=[
         logging.StreamHandler(sys.stdout),
     ],
 )
 logger = logging.getLogger(__name__)
+# Set our app loggers to INFO for important messages
+logging.getLogger("src").setLevel(logging.INFO)
+logging.getLogger("__main__").setLevel(logging.INFO)
 
 
 class InvoiceAutomationService:
@@ -49,6 +52,13 @@ class InvoiceAutomationService:
         self.bot = TelegramBot()
         self.gmail_monitor = GmailMonitor()
         self.llm = GeminiClient()
+
+        # Verify Gmail credentials at startup (triggers OAuth if needed)
+        logger.info("Checking Gmail credentials...")
+        from src.gmail.auth import get_gmail_service
+        get_gmail_service()  # This will prompt for OAuth if no token
+        logger.info("Gmail credentials OK")
+
         self.workflow = WorkflowCoordinator(
             telegram_bot=self.bot,
             gmail_monitor=self.gmail_monitor,
@@ -62,6 +72,21 @@ class InvoiceAutomationService:
                 "result": result,
             })
         self.bot.set_callback_handler(on_approval)
+
+        # Set up reset handler
+        async def on_reset():
+            self.workflow.data.reset()
+            self.workflow._save_state()
+            # Clear temp files
+            import shutil
+            from pathlib import Path
+            for f in Path("data/temp").glob("*"):
+                if f.is_file():
+                    f.unlink()
+            for f in Path("data/incoming").glob("*.pdf"):
+                f.unlink()
+            logger.info("Workflow reset via Telegram command")
+        self.bot.set_reset_handler(on_reset)
 
         # Start components
         await self.bot.initialize()
@@ -110,9 +135,6 @@ class InvoiceAutomationService:
     async def _run_gmail_monitor(self) -> None:
         """Monitor Gmail for incoming emails by checking specific threads."""
         try:
-            # Track which messages we've already processed
-            processed_message_ids: set[str] = set()
-
             while not self._shutdown_event.is_set():
                 try:
                     # Only check when in WAITING_DOCS state
@@ -120,14 +142,16 @@ class InvoiceAutomationService:
                         await asyncio.sleep(10)
                         continue
 
+                    logger.info("Checking Gmail threads for replies...")
+
                     # Check manager thread for approval
                     if (
                         self.workflow.data.manager_thread_id
                         and not self.workflow.data.approval_received
                     ):
+                        logger.info(f"Checking manager thread: {self.workflow.data.manager_thread_id}")
                         emails = await self._check_thread_for_replies(
                             self.workflow.data.manager_thread_id,
-                            processed_message_ids,
                         )
                         for email in emails:
                             logger.info(f"Reply in manager thread from: {email.from_email}")
@@ -141,9 +165,9 @@ class InvoiceAutomationService:
                         self.workflow.data.accountant_thread_id
                         and not self.workflow.data.invoice_received
                     ):
+                        logger.info(f"Checking accountant thread: {self.workflow.data.accountant_thread_id}")
                         emails = await self._check_thread_for_replies(
                             self.workflow.data.accountant_thread_id,
-                            processed_message_ids,
                         )
                         for email in emails:
                             logger.info(f"Reply in accountant thread from: {email.from_email}")
@@ -162,10 +186,8 @@ class InvoiceAutomationService:
         except asyncio.CancelledError:
             logger.info("Gmail monitor task cancelled")
 
-    async def _check_thread_for_replies(
-        self, thread_id: str, processed_ids: set[str]
-    ) -> list:
-        """Check a thread for new replies (messages we didn't send)."""
+    async def _check_thread_for_replies(self, thread_id: str) -> list:
+        """Check a thread for new UNREAD replies (not our sent messages)."""
         from src.models import EmailInfo
 
         try:
@@ -179,28 +201,27 @@ class InvoiceAutomationService:
 
             for msg in messages:
                 msg_id = msg["id"]
-                # Skip if already processed
-                if msg_id in processed_ids:
+                labels = msg.get("labelIds", [])
+
+                # Skip the initial sent message (msg_id == thread_id)
+                if msg_id == thread_id:
                     continue
 
-                # Check if this is a reply (not our original sent message)
-                labels = msg.get("labelIds", [])
-                # If it has SENT label but not INBOX, it's our outgoing message
-                if "SENT" in labels and "INBOX" not in labels:
-                    processed_ids.add(msg_id)
+                # Only process UNREAD messages in INBOX
+                if "UNREAD" not in labels or "INBOX" not in labels:
                     continue
 
                 # Parse the message
                 email_info = self.gmail_monitor._parse_message(msg)
-                processed_ids.add(msg_id)
+                replies.append(email_info)
 
-                # Skip if it's from us (the sender account)
-                if email_info.from_email.lower() == settings.from_email.lower():
-                    # But only if it doesn't have INBOX label (meaning it's a reply TO us)
-                    if "INBOX" in labels:
-                        replies.append(email_info)
-                else:
-                    replies.append(email_info)
+                # Mark as read
+                service.users().messages().modify(
+                    userId="me",
+                    id=msg_id,
+                    body={"removeLabelIds": ["UNREAD"]}
+                ).execute()
+                logger.info(f"Marked message {msg_id} as read")
 
             return replies
 

@@ -20,6 +20,8 @@ class Settings(BaseSettings):
     # Gmail OAuth
     gmail_credentials_file: Path = Path("config/credentials.json")
     gmail_token_file: Path = Path("config/token.json")
+    oauth_callback_host: str = "localhost"  # For redirect URI (use VM IP in production)
+    oauth_callback_port: int = 8080
 
     # Telegram
     telegram_bot_token: str

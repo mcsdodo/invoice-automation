@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Callable
 
 from watchdog.events import FileCreatedEvent, FileModifiedEvent, FileSystemEventHandler
-from watchdog.observers import Observer
+from watchdog.observers.polling import PollingObserver
 
 from src.config import settings
 
@@ -140,7 +140,7 @@ class FolderWatcher:
         """
         self._watch_folder = watch_folder or settings.watch_folder
         self._debounce_seconds = debounce_seconds
-        self._observer: Observer | None = None
+        self._observer: PollingObserver | None = None
         self._handler: _DebouncedPDFHandler | None = None
         self._queue: asyncio.Queue[FileEvent] = asyncio.Queue()
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -180,7 +180,8 @@ class FolderWatcher:
             callback=self._on_file_ready,
             debounce_seconds=self._debounce_seconds,
         )
-        self._observer = Observer()
+        # Use PollingObserver for Docker/Windows compatibility (inotify doesn't work through bind mounts)
+        self._observer = PollingObserver(timeout=2.0)
         self._observer.schedule(
             self._handler,
             str(self._watch_folder),
@@ -189,6 +190,21 @@ class FolderWatcher:
         self._observer.start()
         self._running = True
         logger.info("Folder watcher started")
+
+        # Scan for existing PDF files on startup
+        await self._scan_existing_files()
+
+    async def _scan_existing_files(self) -> None:
+        """Scan for existing PDF files in the watch folder on startup."""
+        try:
+            pdf_files = list(self._watch_folder.glob("*.pdf"))
+            if pdf_files:
+                logger.info("Found %d existing PDF file(s) on startup", len(pdf_files))
+                for pdf_file in pdf_files:
+                    logger.info("Processing existing file: %s", pdf_file)
+                    self._on_file_ready(pdf_file)
+        except Exception as e:
+            logger.error("Error scanning existing files: %s", e)
 
     async def stop(self) -> None:
         """Stop watching the folder."""

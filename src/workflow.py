@@ -68,6 +68,9 @@ class WorkflowCoordinator:
         self._running = True
         logger.info(f"Workflow coordinator started in state: {self.data.state}")
 
+        # Recover state on startup - re-send approval messages if needed
+        await self._recover_state()
+
         while self._running:
             try:
                 event = await asyncio.wait_for(
@@ -86,6 +89,44 @@ class WorkflowCoordinator:
     async def stop(self) -> None:
         """Stop the workflow coordinator."""
         self._running = False
+
+    async def _recover_state(self) -> None:
+        """Recover workflow state on startup - re-send approval messages if needed."""
+        if self.data.state == WorkflowState.PENDING_INIT_APPROVAL:
+            # Re-send timesheet approval message
+            if self.data.timesheet_info:
+                logger.info("Recovering PENDING_INIT_APPROVAL state - re-sending approval message")
+                total = self.data.timesheet_info.total_hours * settings.hourly_rate
+                msg_id = await self.bot.send_timesheet_approval(self.data.timesheet_info, total)
+                self.data.telegram_message_id = msg_id
+                self._save_state()
+
+        elif self.data.state == WorkflowState.ALL_DOCS_READY:
+            # Re-send docs ready approval message
+            logger.info("Recovering ALL_DOCS_READY state - re-sending approval message")
+            details = (
+                "All documents received:\n"
+                "- Invoice\n"
+                "- Timesheet\n"
+                "- Manager approval"
+            )
+            msg_id = await self.bot.send_docs_ready_approval(details)
+            self.data.telegram_message_id = msg_id
+            self._save_state()
+
+        elif self.data.state == WorkflowState.WAITING_DOCS:
+            # Notify about waiting state
+            logger.info("Recovering WAITING_DOCS state - sending status update")
+            status = []
+            if self.data.approval_received:
+                status.append("Manager approval received")
+            else:
+                status.append("Waiting for manager approval")
+            if self.data.invoice_received:
+                status.append("Invoice received")
+            else:
+                status.append("Waiting for invoice from accountant")
+            await self.bot.send_message(f"Workflow resumed:\n- " + "\n- ".join(status))
 
     async def _process_event(self, event: dict) -> None:
         """Process a single event based on current state."""
@@ -106,8 +147,8 @@ class WorkflowCoordinator:
         if self.data.state != WorkflowState.IDLE:
             logger.warning(f"Ignoring new timesheet, not in IDLE state")
             await self.bot.send_message(
-                f"⚠️ New timesheet detected but workflow already in progress.\n"
-                f"Current state: {self.data.state}"
+                f"New timesheet detected but workflow already in progress. "
+                f"Current state: {self.data.state.value}"
             )
             return
 
@@ -116,8 +157,13 @@ class WorkflowCoordinator:
             timesheet_info = parse_timesheet(path)
             logger.info(f"Parsed timesheet: {timesheet_info.total_hours}h for {timesheet_info.month}/{timesheet_info.year}")
 
+            # Move timesheet to temp folder (clears watch folder)
+            temp_path = Path("data/temp") / path.name
+            shutil.move(str(path), str(temp_path))
+            logger.info(f"Moved timesheet to: {temp_path}")
+
             # Update state
-            self.data.timesheet_path = path
+            self.data.timesheet_path = temp_path
             self.data.timesheet_info = timesheet_info
             self.data.state = WorkflowState.PENDING_INIT_APPROVAL
             self._save_state()
@@ -326,10 +372,10 @@ class WorkflowCoordinator:
 
             # Send approval request
             details = (
-                f"📄 Documents ready:\n"
-                f"• Invoice: {self.data.invoice_pdf_path}\n"
-                f"• Timesheet: {self.data.timesheet_path}\n"
-                f"• Approval: ✓"
+                "All documents received:\n"
+                "- Invoice\n"
+                "- Timesheet\n"
+                "- Manager approval"
             )
             msg_id = await self.bot.send_docs_ready_approval(details)
             self.data.telegram_message_id = msg_id
@@ -390,7 +436,8 @@ class WorkflowCoordinator:
 
         except Exception as e:
             logger.exception(f"Failed to send final email: {e}")
-            await self.bot.send_error(f"Failed to send final email: {e}", "Final email")
+            error_msg = str(e)[:500]  # Truncate for Telegram
+            await self.bot.send_error(f"Failed to send final email: {error_msg}", "Final email")
 
     async def _archive_files(self, merged_path: Path) -> None:
         """Move files to archive folder."""

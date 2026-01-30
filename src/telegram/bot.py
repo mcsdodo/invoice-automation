@@ -10,6 +10,7 @@ from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import (
     Application,
     CallbackQueryHandler,
+    CommandHandler,
     ContextTypes,
     MessageHandler,
     filters,
@@ -60,6 +61,7 @@ class TelegramBot:
         self._app: Application | None = None
         self._chat_id: int = settings.telegram_chat_id
         self._callback_handler: CallbackHandler | None = None
+        self._reset_handler: Callable[[], Coroutine[Any, Any, None]] | None = None
         self._edit_mode: bool = False
         self._edit_timeout_task: asyncio.Task | None = None
         self._pending_edit_message_id: int | None = None
@@ -75,6 +77,7 @@ class TelegramBot:
         )
 
         # Add handlers
+        self._app.add_handler(CommandHandler("reset", self._handle_reset_command))
         self._app.add_handler(CallbackQueryHandler(self._handle_callback))
         self._app.add_handler(
             MessageHandler(
@@ -114,6 +117,21 @@ class TelegramBot:
             handler: Async function to call with ApprovalResult
         """
         self._callback_handler = handler
+
+    def set_reset_handler(self, handler: Callable[[], Coroutine[Any, Any, None]]) -> None:
+        """Set the handler for /reset command."""
+        self._reset_handler = handler
+
+    async def _handle_reset_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /reset command."""
+        if update.effective_chat.id != self._chat_id:
+            return
+
+        if self._reset_handler:
+            await self._reset_handler()
+            await self.send_message("🔄 Workflow reset. Drop a new timesheet to start.")
+        else:
+            await self.send_message("❌ Reset handler not configured.")
 
     async def send_message(self, text: str) -> int:
         """Send a text message to the configured chat.
