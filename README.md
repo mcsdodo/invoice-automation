@@ -1,3 +1,30 @@
+# Invoice Automation
+
+A Python service that automates the monthly invoice workflow with Telegram approvals.
+
+## How It Works
+
+```mermaid
+graph TD
+    A[IDLE] -->|Timesheet PDF detected| B[PENDING_INIT_APPROVAL]
+    B -->|User approves| C[WAITING_DOCS]
+    C -->|Manager approval +<br>Invoice received| D[ALL_DOCS_READY]
+    D -->|User approves| E[COMPLETE]
+    E -->|Files archived| A
+```
+
+### Workflow Steps
+
+1. **IDLE** → Drop a Jira timesheet PDF into the watch folder
+2. **PENDING_INIT_APPROVAL** → Bot parses hours, asks for Telegram approval
+3. **WAITING_DOCS** → Emails sent to manager (for approval) and accountant (for invoice)
+4. **ALL_DOCS_READY** → Both responses received, asks for final Telegram approval
+5. **COMPLETE** → Merges invoice + timesheet + approval email into one PDF, sends it, archives files
+
+State is persisted to disk - the service can restart without losing progress.
+
+---
+
 ## Telegram Bot Setup
 
 1. Create a bot via @BotFather
