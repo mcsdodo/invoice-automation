@@ -19,6 +19,7 @@ reportlab>=4.0
 
 # LLM
 google-generativeai>=0.8
+openai>=1.0
 
 # Folder watching
 watchdog>=4.0

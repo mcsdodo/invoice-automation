@@ -10,7 +10,7 @@ from src.config import settings
 from src.watcher import FolderWatcher
 from src.telegram.bot import TelegramBot, ApprovalResult
 from src.gmail.monitor import GmailMonitor
-from src.llm.gemini import GeminiClient
+from src.llm import LLMClient, create_llm_client
 from src.workflow import WorkflowCoordinator
 
 # Configure logging - WARNING level to reduce noise
@@ -34,7 +34,7 @@ class InvoiceAutomationService:
         self.watcher: FolderWatcher | None = None
         self.bot: TelegramBot | None = None
         self.gmail_monitor: GmailMonitor | None = None
-        self.llm: GeminiClient | None = None
+        self.llm: LLMClient | None = None
         self.workflow: WorkflowCoordinator | None = None
         self._shutdown_event = asyncio.Event()
 
@@ -51,7 +51,8 @@ class InvoiceAutomationService:
         self.watcher = FolderWatcher()
         self.bot = TelegramBot()
         self.gmail_monitor = GmailMonitor()
-        self.llm = GeminiClient()
+        self.llm = create_llm_client()
+        logger.info("LLM provider: %s, model: %s", settings.llm_provider, settings.llm_model)
 
         # Verify Gmail credentials at startup (triggers OAuth if needed)
         logger.info("Checking Gmail credentials...")
@@ -62,7 +63,7 @@ class InvoiceAutomationService:
         self.workflow = WorkflowCoordinator(
             telegram_bot=self.bot,
             gmail_monitor=self.gmail_monitor,
-            gemini_client=self.llm,
+            llm_client=self.llm,
         )
 
         # Set up Telegram callback handler

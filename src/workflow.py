@@ -13,7 +13,7 @@ from src.models import WorkflowState, WorkflowData, TimesheetInfo, EmailInfo
 from src.pdf import parse_timesheet, merge_pdfs, HtmlToPdfConverter, html_to_pdf
 from src.telegram.bot import TelegramBot, ApprovalAction, ApprovalResult
 from src.gmail import send_email, reply_to_thread, GmailMonitor
-from src.llm.gemini import GeminiClient
+from src.llm import LLMClient
 
 logger = logging.getLogger(__name__)
 
@@ -27,11 +27,11 @@ class WorkflowCoordinator:
         self,
         telegram_bot: TelegramBot,
         gmail_monitor: GmailMonitor,
-        gemini_client: GeminiClient,
+        llm_client: LLMClient,
     ):
         self.bot = telegram_bot
         self.gmail_monitor = gmail_monitor
-        self.llm = gemini_client
+        self.llm = llm_client
         self.data = WorkflowData()
         self.event_queue: asyncio.Queue = asyncio.Queue()
         self._lock = asyncio.Lock()

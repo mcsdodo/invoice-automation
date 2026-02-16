@@ -41,7 +41,11 @@ class Settings(BaseSettings):
     currency: str = "EUR"
 
     # LLM
-    gemini_api_key: str
+    llm_provider: str = "gemini"  # "gemini" or "openai"
+    llm_model: str = "gemini-2.0-flash-lite"
+    llm_base_url: str = "https://ollama.lacny.me/v1"  # For openai provider
+    llm_api_key: str = "ollama"  # For openai provider (Ollama ignores this)
+    gemini_api_key: str = ""  # For gemini provider
 
     # Email monitoring
     gmail_poll_interval: int = 60  # Seconds between email checks
