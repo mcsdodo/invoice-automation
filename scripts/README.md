@@ -1,4 +1,52 @@
-# Interactive Test Scripts
+# Testing
+
+## Testing the Workflow
+
+The easiest way to test the full workflow is via the **Telegram debug menu**.
+
+Set `TELEGRAM_DEBUG_MENU=true` in your `.env` or `docker-compose.yml`, then restart the service. The bot will show a persistent keyboard with test actions:
+
+| Button | Action |
+|---|---|
+| 📊 Status | Show current workflow state, received documents, thread IDs |
+| 📄 Drop Test PDF | Create a test timesheet PDF (160h) in the watch folder |
+| ✉️ Send Approval | Send a simulated manager approval reply to the email thread |
+| 📨 Send Invoice | Create and send a simulated invoice reply to the accountant thread |
+| 🔄 Reset | Clear state and temp files for a fresh test run |
+
+### Complete Test Flow
+
+1. Reset state (🔄 Reset)
+2. Drop a test timesheet (📄 Drop Test PDF)
+3. Approve the initial emails in Telegram (click "Approve" on the inline keyboard)
+4. Send simulated approval (✉️ Send Approval)
+5. Send simulated invoice (📨 Send Invoice)
+6. Wait ~60s for email polling to detect them
+7. Approve the final merge in Telegram (click "Approve" on the inline keyboard)
+8. Check status (📊 Status) to confirm COMPLETE
+
+## Credential Verification Scripts
+
+Quick scripts to verify external service connectivity:
+
+```bash
+.venv/Scripts/python scripts/test_gmail.py      # Gmail OAuth flow + token
+.venv/Scripts/python scripts/test_telegram.py    # Telegram bot token + test message
+.venv/Scripts/python scripts/test_gemini.py      # Gemini API key
+.venv/Scripts/python scripts/test_llm.py         # LLM via configured provider
+```
+
+## CLI Test Scripts
+
+The same test actions are also available as standalone scripts, useful for automation or when you prefer the command line:
+
+```bash
+.venv/Scripts/python scripts/00_check_status.py          # Show workflow state
+.venv/Scripts/python scripts/01_drop_timesheet.py [hours] # Create test PDF (default: 160h)
+.venv/Scripts/python scripts/02_send_approval.py          # Send manager approval reply
+.venv/Scripts/python scripts/03_send_invoice.py           # Send invoice reply
+.venv/Scripts/python scripts/99_reset.py                  # Reset state
+```
 
 ## Prerequisites
 
@@ -12,67 +60,3 @@
    .venv/Scripts/python <script>  # Windows
    .venv/bin/python <script>      # Linux/Mac
    ```
-
-## Workflow Steps
-
-### 0. Check Status (anytime)
-```bash
-.venv/Scripts/python scripts/00_check_status.py
-```
-Shows current workflow state, received documents, thread IDs.
-
-### 1. Drop Timesheet
-```bash
-.venv/Scripts/python scripts/01_drop_timesheet.py [hours]
-```
-Creates a test timesheet PDF in `data/incoming/`.
-Default: 160 hours.
-
-**Then:** Check Telegram for approval message, click "Approve".
-
-### 2. Send Manager Approval
-```bash
-.venv/Scripts/python scripts/02_send_approval.py
-```
-Sends "ok schvalujem" reply to the manager email thread.
-
-**Note:** Service polls every 60 seconds, so wait or check status.
-
-### 3. Send Invoice
-```bash
-.venv/Scripts/python scripts/03_send_invoice.py
-```
-Creates an invoice PDF and sends it as reply to accountant thread.
-
-**Then:** Check Telegram for final approval message, click "Approve".
-
-### 99. Reset
-```bash
-.venv/Scripts/python scripts/99_reset.py
-```
-Clears state and temp files for a fresh test run.
-
-## Complete Test Flow
-
-```bash
-# Start fresh
-.venv/Scripts/python scripts/99_reset.py
-
-# Start service
-docker-compose up -d
-
-# Step 1: Drop timesheet
-.venv/Scripts/python scripts/01_drop_timesheet.py
-
-# >> Telegram: Click "Approve" to send emails
-
-# Step 2 & 3: Send approval and invoice
-.venv/Scripts/python scripts/02_send_approval.py
-.venv/Scripts/python scripts/03_send_invoice.py
-
-# >> Wait ~60s for service to detect emails
-# >> Telegram: Click "Approve" to merge and send final email
-
-# Check status
-.venv/Scripts/python scripts/00_check_status.py
-```

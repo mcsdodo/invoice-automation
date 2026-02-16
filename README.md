@@ -15,17 +15,27 @@ graph TD
 
 ### Workflow Steps
 
-1. **IDLE** → Drop a Jira timesheet PDF into the watch folder
-2. **PENDING_INIT_APPROVAL** → Bot parses total hours from the timesheet, calculates invoice amount, and asks for Telegram approval
-3. **WAITING_DOCS** → Two emails sent in parallel:
-   - To **manager** (cc: invoicing dept): timesheet attached, requesting approval
-   - To **accountant**: total hours and breakdown, so they can generate the invoice
-4. **ALL_DOCS_READY** → Both responses received (manager's approval email + accountant's invoice PDF), asks for final Telegram approval
-5. **COMPLETE** → Merges invoice + timesheet + approval email into one PDF, sends it to the manager thread, archives files
+**1. IDLE** - Folder watcher monitors for new PDF files in the watch folder.
 
-The accountant handles official invoice generation - we just provide them with the hours breakdown. Once they send back the invoice PDF and the manager approves the timesheet, we combine everything into a single document.
+**2. PENDING_INIT_APPROVAL** - A new timesheet PDF is detected. The bot parses it with pdfplumber to extract total hours and date range, calculates the invoice amount (hours x hourly rate), and sends a Telegram message with Approve / Edit Hours / Cancel buttons. User can edit the hours before approving.
 
-State is persisted to disk - the service can restart without losing progress.
+**3. WAITING_DOCS** - User approved. Two emails are sent:
+- To **manager** (cc: invoicing dept) with the timesheet PDF attached, requesting approval
+- To **accountant** with total hours and line-item breakdown, so they can generate the official invoice
+
+The Gmail monitor polls the inbox and tracks both email threads by thread ID. Two flags are tracked independently:
+- `approval_received` - set when manager replies to their thread. Detection: keyword match against configurable `APPROVAL_KEYWORDS`, with Gemini LLM fallback for ambiguous replies.
+- `invoice_received` - set when accountant replies with a PDF attachment to their thread.
+
+Both can arrive in any order. A 7-day reminder is sent if either is missing, then daily reminders after 14 days.
+
+**4. ALL_DOCS_READY** - Both flags are true. The bot sends a final Telegram approval with Approve / Cancel buttons.
+
+**5. COMPLETE** - User approved. Three PDFs are merged in order: invoice (from accountant) + timesheet (from Jira) + approval email (converted to PDF via Playwright). The merged PDF is sent as a reply to the manager's email thread. All files are archived to `{archive_folder}/{year}-{month}/`.
+
+The workflow then resets to IDLE automatically. Cancelling at any approval step archives files to a `cancelled/` subfolder and resets.
+
+State is persisted to `data/state.json` - the service can restart without losing progress. On startup, it recovers the current state and re-sends any pending Telegram approval messages.
 
 ---
 
