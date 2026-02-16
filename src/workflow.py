@@ -104,11 +104,13 @@ class WorkflowCoordinator:
         elif self.data.state == WorkflowState.ALL_DOCS_READY:
             # Re-send docs ready approval message
             logger.info("Recovering ALL_DOCS_READY state - re-sending approval message")
+            info = self.data.timesheet_info
             details = (
-                "All documents received:\n"
-                "- Invoice\n"
-                "- Timesheet\n"
-                "- Manager approval"
+                f"All documents received:\n"
+                f"- Invoice from {settings.accountant_email}\n"
+                f"- Timesheet ({info.total_hours}h, {info.month:02d}/{info.year})\n"
+                f"- Manager approval from {settings.manager_email}\n\n"
+                f"Approve to merge into one PDF and send to {settings.manager_email} (cc: {settings.invoicing_dept_email})"
             )
             msg_id = await self.bot.send_docs_ready_approval(details)
             self.data.telegram_message_id = msg_id
@@ -371,11 +373,13 @@ class WorkflowCoordinator:
             self._save_state()
 
             # Send approval request
+            info = self.data.timesheet_info
             details = (
-                "All documents received:\n"
-                "- Invoice\n"
-                "- Timesheet\n"
-                "- Manager approval"
+                f"All documents received:\n"
+                f"- Invoice from {settings.accountant_email}\n"
+                f"- Timesheet ({info.total_hours}h, {info.month:02d}/{info.year})\n"
+                f"- Manager approval from {settings.manager_email}\n\n"
+                f"Approve to merge into one PDF and send to {settings.manager_email} (cc: {settings.invoicing_dept_email})"
             )
             msg_id = await self.bot.send_docs_ready_approval(details)
             self.data.telegram_message_id = msg_id

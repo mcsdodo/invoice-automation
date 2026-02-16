@@ -40,7 +40,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Telegram markdown parsing errors (simplified messages, removed file paths)
 - Duplicate "new timesheet" messages on restart (move to temp folder)
 
+### Restored
+- Interactive CLI test scripts (`scripts/00-03, 99`) previously removed as obsolete
+
 ### Changed
+- `scripts/README.md` rewritten to lead with Telegram debug menu as primary testing method
+- README workflow section expanded with detailed state descriptions
 - LLM model name now configurable via `LLM_MODEL` env var (was hardcoded to `gemini-2.0-flash-lite`)
 - `GeminiClient` now extends `LLMClient` base class, only implements `generate_text()`
 - `WorkflowCoordinator` and `InvoiceAutomationService` now use `LLMClient` abstraction instead of `GeminiClient` directly

@@ -305,9 +305,8 @@ class TelegramBot:
             Message ID of the sent message
         """
         text = (
-            "*All Documents Ready*\n\n"
-            f"{details}\n\n"
-            "Ready to merge and send final invoice?"
+            f"*All Documents Ready*\n\n"
+            f"{details}"
         )
         buttons = [
             [
@@ -366,7 +365,9 @@ class TelegramBot:
             f"  - Software architecture: {timesheet_info.arch_hours}h\n"
             f"  - Testing: {timesheet_info.test_hours}h\n\n"
             f"*Total Amount:* {total_amount:.2f} {settings.currency}\n\n"
-            f"Please approve to send emails to manager and accountant."
+            f"*Approve to send:*\n"
+            f"1. Timesheet + approval request to {settings.manager_email} (cc: {settings.invoicing_dept_email})\n"
+            f"2. Hours breakdown to {settings.accountant_email} for invoice generation"
         )
 
     async def _handle_callback(
@@ -646,7 +647,7 @@ class TelegramBot:
             state = json.loads(STATE_FILE.read_text())
 
             status_lines = [
-                f"*Status:* {state.get('state', 'unknown')}",
+                f"*Status:* `{state.get('state', 'unknown')}`",
                 "",
             ]
 
