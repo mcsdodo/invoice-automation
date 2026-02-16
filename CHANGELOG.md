@@ -8,6 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- LLM provider strategy pattern - switchable between Gemini and OpenAI-compatible APIs via `LLM_PROVIDER` env var
+- OpenAI-compatible LLM client (`src/llm/openai_client.py`) for Ollama and other OpenAI API-compatible services
+- LLM abstract base class (`src/llm/base.py`) with shared prompt logic and JSON parsing
+- New LLM config env vars: `LLM_PROVIDER`, `LLM_MODEL`, `LLM_BASE_URL`, `LLM_API_KEY`
+- `scripts/test_llm.py` - provider-agnostic LLM connectivity test
+- `openai` Python package dependency
 - Configurable company name via `COMPANY_NAME` env var (default "YourCompany inc.")
 - Workflow state diagram and detailed workflow description in README
 - Configurable email poll interval via `GMAIL_POLL_INTERVAL` env var (default 60s)
@@ -35,6 +41,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Duplicate "new timesheet" messages on restart (move to temp folder)
 
 ### Changed
+- LLM model name now configurable via `LLM_MODEL` env var (was hardcoded to `gemini-2.0-flash-lite`)
+- `GeminiClient` now extends `LLMClient` base class, only implements `generate_text()`
+- `WorkflowCoordinator` and `InvoiceAutomationService` now use `LLMClient` abstraction instead of `GeminiClient` directly
+- `GEMINI_API_KEY` now optional (defaults to empty string), only needed when `LLM_PROVIDER=gemini`
 - Timesheet now moved to `data/temp/` when first processed (clears watch folder)
 - Reduced default log level to WARNING, app loggers at INFO
 - Gmail API scopes now use granular permissions instead of full access
