@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tech debt documentation for OAuth Docker workarounds
 
 ### Fixed
+- Debug status Telegram message failing due to Markdown parse error (underscores in state name)
 - Playwright Chromium missing shared libraries in Docker (libxfixes3, etc.)
 - OAuth flow not working in Docker (added custom callback handler)
 - File watcher not detecting files through Docker bind mounts (PollingObserver)
@@ -44,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive CLI test scripts (`scripts/00-03, 99`) previously removed as obsolete
 
 ### Changed
+- Telegram approval messages now show email recipients and what will be sent at each step
 - `scripts/README.md` rewritten to lead with Telegram debug menu as primary testing method
 - README workflow section expanded with detailed state descriptions
 - LLM model name now configurable via `LLM_MODEL` env var (was hardcoded to `gemini-2.0-flash-lite`)

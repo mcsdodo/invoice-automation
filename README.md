@@ -24,7 +24,7 @@ graph TD
 - To **accountant** with total hours and line-item breakdown, so they can generate the official invoice
 
 The Gmail monitor polls the inbox and tracks both email threads by thread ID. Two flags are tracked independently:
-- `approval_received` - set when manager replies to their thread. Detection: keyword match against configurable `APPROVAL_KEYWORDS`, with Gemini LLM fallback for ambiguous replies.
+- `approval_received` - set when manager replies to their thread. Detection: keyword match against configurable `APPROVAL_KEYWORDS`, with LLM fallback for ambiguous replies.
 - `invoice_received` - set when accountant replies with a PDF attachment to their thread.
 
 Both can arrive in any order. A 7-day reminder is sent if either is missing, then daily reminders after 14 days.
@@ -51,6 +51,27 @@ State is persisted to `data/state.json` - the service can restart without losing
 This allows the bot to receive all messages (needed for the "Edit Hours" flow).
 
 **Debug menu**: Set `TELEGRAM_DEBUG_MENU=true` in `.env` to enable test buttons.
+
+## LLM Configuration
+
+The service uses an LLM to classify ambiguous email replies (approval detection). Two providers are supported:
+
+**Ollama (default)** — any OpenAI-compatible API:
+```env
+LLM_PROVIDER=openai
+LLM_MODEL=qwen2.5:3b
+LLM_BASE_URL=https://your-ollama-host/v1
+LLM_API_KEY=ollama  # Ollama ignores this, but the OpenAI client requires a value
+```
+
+**Google Gemini:**
+```env
+LLM_PROVIDER=gemini
+LLM_MODEL=gemini-2.0-flash-lite
+GEMINI_API_KEY=AIzaSy...
+```
+
+Any OpenAI-compatible API works with the `openai` provider (Ollama, LM Studio, vLLM, OpenAI itself, etc.). The `LLM_BASE_URL` should point to the `/v1` endpoint.
 
 ## Google Gmail API Setup
 
