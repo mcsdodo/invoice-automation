@@ -226,10 +226,11 @@ class WorkflowCoordinator:
             total = info.total_hours * settings.hourly_rate
             acc_subject = f"{settings.company_name} - podklady ku vystaveniu faktur {info.month:02d}/{info.year}"
             acc_body = (
+                f"Ahoj,\n"
                 f"za {info.month_name} prosim takto:\n"
                 f"{info.total_hours}*{settings.hourly_rate}={total} bez DPH\n\n"
-                f"navrh soft. arch. pre nav. aplikaciu - {info.arch_hours}h\n"
-                f"testovanie navigačnej apl. počas jazdy - {info.test_hours}h"
+                f"- navrh soft. arch. pre nav. aplikaciu - {info.arch_hours}h\n"
+                f"- testovanie navigačnej apl. počas jazdy - {info.test_hours}h"
             )
 
             msg_id, thread_id = await asyncio.to_thread(
