@@ -71,6 +71,9 @@ class WorkflowData(BaseModel):
     # Telegram message tracking
     telegram_message_id: int | None = None
 
+    # Processed email message IDs (to avoid re-processing)
+    processed_message_ids: list[str] = Field(default_factory=list)
+
     def reset(self) -> None:
         """Reset workflow to initial state."""
         self.state = WorkflowState.IDLE
@@ -84,6 +87,7 @@ class WorkflowData(BaseModel):
         self.approval_email_html = None
         self.waiting_since = None
         self.telegram_message_id = None
+        self.processed_message_ids = []
 
 
 class EmailInfo(BaseModel):

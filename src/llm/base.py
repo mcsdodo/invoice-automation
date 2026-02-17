@@ -27,7 +27,8 @@ class LLMClient(ABC):
 
         Returns (False, 0.0) on API errors (uncertain result).
         """
-        prompt = f"""Analyze the following email and determine if it is approving a timesheet or invoice submission.
+        prompt = f"""You are classifying whether an email is approving a timesheet or invoice submission.
+An approval does NOT need to use the exact word "approved". Any positive signal that the sender agrees, accepts, or gives permission to proceed counts as an approval.
 
 Email content:
 ---
@@ -37,15 +38,21 @@ Email content:
 Answer with a JSON object in this exact format:
 {{"is_approval": true/false, "confidence": 0.0-1.0, "reason": "brief explanation"}}
 
-Consider these as approval indicators:
-- Words like "approved", "accepted", "ok", "agreed", "confirmed"
-- Slovak words like "schvalene", "schvalujem", "suhlasim", "v poriadku"
-- Positive acknowledgment of timesheet/invoice receipt
+APPROVAL indicators (any of these means is_approval=true):
+- Explicit: "approved", "accepted", "ok", "agreed", "confirmed"
+- Slovak explicit: "schvalene", "schvalujem", "suhlasim", "v poriadku"
+- Implicit: "proceed", "go ahead", "looks good", "looks correct", "no issues"
+- Slovak implicit: "pokracuj", "pokracovat", "sedi", "sedia", "v poriadku", "nech sa paci"
+- Confirming hours/amounts are correct
+- Giving permission to continue with invoicing
+- Any positive acknowledgment without objections
 
-Consider these as non-approval indicators:
+NON-APPROVAL indicators:
 - Questions or requests for changes
 - Rejections or denials
 - Unrelated emails
+
+When in doubt, if the sender shows no objection and signals to move forward, classify as approval.
 
 Respond ONLY with the JSON object, no other text."""
 
@@ -101,8 +108,8 @@ Respond ONLY with the JSON object, no other text."""
             confidence = float(data.get("confidence", 0.0))
             confidence = max(0.0, min(1.0, confidence))
 
-            logger.debug(
-                "Email classification: is_approval=%s, confidence=%.2f, reason=%s",
+            logger.info(
+                "LLM email classification: is_approval=%s, confidence=%.2f, reason=%s",
                 is_approval,
                 confidence,
                 data.get("reason", "N/A"),
@@ -134,8 +141,8 @@ Respond ONLY with the JSON object, no other text."""
                 except (ValueError, TypeError):
                     total_amount = None
 
-            logger.debug(
-                "Invoice verification: is_invoice=%s, number=%s, amount=%s, reason=%s",
+            logger.info(
+                "LLM invoice verification: is_invoice=%s, number=%s, amount=%s, reason=%s",
                 is_invoice,
                 invoice_number,
                 total_amount,

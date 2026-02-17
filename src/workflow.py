@@ -3,6 +3,7 @@
 import asyncio
 import json
 import logging
+import re
 import shutil
 from datetime import datetime
 from pathlib import Path
@@ -262,6 +263,12 @@ class WorkflowCoordinator:
             logger.debug(f"Ignoring email, not in WAITING_DOCS state")
             return
 
+        # Skip already-processed messages
+        if email.message_id in self.data.processed_message_ids:
+            return
+        self.data.processed_message_ids.append(email.message_id)
+        self._save_state()
+
         # Check by thread ID (more reliable than FROM for Gmail aliases)
         if self.data.manager_thread_id and email.thread_id == self.data.manager_thread_id:
             await self._check_approval_email(email)
@@ -319,15 +326,24 @@ class WorkflowCoordinator:
         """Check if email is an approval."""
         body = email.body_text.lower()
 
-        # Check keywords
-        is_approval = any(kw in body for kw in settings.approval_keywords_list)
+        # Check keywords (whole word match only)
+        matched_keyword = None
+        for kw in settings.approval_keywords_list:
+            if re.search(rf"\b{re.escape(kw)}\b", body):
+                matched_keyword = kw
+                break
+        is_approval = matched_keyword is not None
+        logger.info("Approval keyword match: %s (keyword=%s, body: %s)", is_approval, matched_keyword, body[:100])
 
         if not is_approval:
             # Fallback to LLM
+            logger.info("No keyword match, falling back to LLM classification")
             is_approval, confidence = await self.llm.is_approval_email(email.body_text)
-            if confidence < 0.7:
+            logger.info("LLM result: is_approval=%s, confidence=%.2f", is_approval, confidence)
+            if not is_approval or confidence < 0.7:
                 await self.bot.send_message(
                     f"❓ Received email from manager but couldn't confirm approval.\n"
+                    f"LLM: `is_approval={is_approval}`, `confidence={confidence:.2f}`\n"
                     f"Subject: {email.subject}\n"
                     f"Please check manually."
                 )

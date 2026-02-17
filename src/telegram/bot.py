@@ -52,9 +52,10 @@ class DebugButton(str, Enum):
     """Debug keyboard button labels."""
 
     STATUS = "📊 Status"
-    DROP_PDF = "📄 Drop Test PDF"
-    SEND_APPROVAL = "✅ Send Approval"
-    SEND_INVOICE = "💰 Send Invoice"
+    DROP_PDF = "📄 Drop Timesheet"
+    SEND_APPROVAL = "✅ Send Approval (mngr)"
+    SEND_APPROVAL_LLM = "🧠 Approval LLM (mngr)"
+    SEND_INVOICE = "💰 Send Invoice (accountant)"
     RESET = "🔄 Reset"
 
 
@@ -62,8 +63,8 @@ class DebugButton(str, Enum):
 DEBUG_KEYBOARD = ReplyKeyboardMarkup(
     [
         [KeyboardButton(DebugButton.STATUS.value), KeyboardButton(DebugButton.DROP_PDF.value)],
-        [KeyboardButton(DebugButton.SEND_APPROVAL.value), KeyboardButton(DebugButton.SEND_INVOICE.value)],
-        [KeyboardButton(DebugButton.RESET.value)],
+        [KeyboardButton(DebugButton.SEND_APPROVAL.value), KeyboardButton(DebugButton.SEND_APPROVAL_LLM.value)],
+        [KeyboardButton(DebugButton.SEND_INVOICE.value), KeyboardButton(DebugButton.RESET.value)],
     ],
     resize_keyboard=True,
     is_persistent=True,
@@ -500,6 +501,9 @@ class TelegramBot:
         elif text == DebugButton.SEND_APPROVAL.value:
             await self._handle_debug_send_approval()
             return
+        elif text == DebugButton.SEND_APPROVAL_LLM.value:
+            await self._handle_debug_send_approval_llm()
+            return
         elif text == DebugButton.SEND_INVOICE.value:
             await self._handle_debug_send_invoice()
             return
@@ -788,6 +792,94 @@ class TelegramBot:
 
         except Exception as e:
             logger.exception("Debug send approval failed")
+            await self.send_message(f"*Error sending approval:* {e}")
+
+    async def _handle_debug_send_approval_llm(self) -> None:
+        """Send ambiguous approval email to test LLM fallback (no keyword match)."""
+        import base64
+        import json
+        from email.mime.text import MIMEText
+        from src.workflow import STATE_FILE
+        from src.gmail.auth import get_gmail_service
+
+        logger.debug("Debug: send approval (LLM test) requested")
+
+        try:
+            # Validate state
+            if not STATE_FILE.exists():
+                await self.send_message("*Error:* No state file. Start workflow first.")
+                return
+
+            state = json.loads(STATE_FILE.read_text())
+
+            if state.get("state") != "WAITING_DOCS":
+                await self.send_message(
+                    f"*Error:* Not in WAITING_DOCS state (current: {state.get('state')})"
+                )
+                return
+
+            thread_id = state.get("manager_thread_id")
+            if not thread_id:
+                await self.send_message("*Error:* No manager thread ID. Emails not sent yet?")
+                return
+
+            if state.get("approval_received"):
+                await self.send_message("*Note:* Approval already received.")
+                return
+
+            await self.send_message(
+                "🧠 Sending ambiguous approval reply (no keyword match)...\n"
+                "This will test the LLM fallback classification."
+            )
+
+            # Get Gmail service (sync call, wrap in thread)
+            service = await asyncio.to_thread(get_gmail_service)
+
+            # Get original message to reply to
+            thread = await asyncio.to_thread(
+                lambda: service.users().threads().get(userId="me", id=thread_id).execute()
+            )
+            messages = thread.get("messages", [])
+            if not messages:
+                await self.send_message("*Error:* No messages in thread.")
+                return
+
+            original_msg = messages[0]
+            headers = {h["name"]: h["value"] for h in original_msg["payload"]["headers"]}
+            subject = headers.get("Subject", "")
+            message_id = headers.get("Message-ID", "")
+
+            # Body deliberately avoids all keywords:
+            # approved, schvalene, schvalujem, suhlasim, ok, v poriadku
+            reply = MIMEText(
+                "Dobry den,\n\n"
+                "Dakujem za zaslanie. Hodiny sedia, mozes pokracovat s fakturou.\n\n"
+                "S pozdravom,\nManager"
+            )
+            reply["To"] = settings.from_email
+            reply["From"] = settings.from_email
+            reply["Subject"] = f"Re: {subject}" if not subject.startswith("Re:") else subject
+            reply["In-Reply-To"] = message_id
+            reply["References"] = message_id
+
+            raw = base64.urlsafe_b64encode(reply.as_bytes()).decode()
+            await asyncio.to_thread(
+                lambda: service.users().messages().send(
+                    userId="me",
+                    body={"raw": raw, "threadId": thread_id}
+                ).execute()
+            )
+
+            await self.send_message(
+                "✅ Ambiguous approval reply sent!\n\n"
+                "Body: _\"Dakujem za zaslanie. Hodiny sedia, mozes pokracovat s fakturou.\"_\n\n"
+                "Keywords won't match → LLM fallback will be triggered.\n"
+                "Monitor should detect it within ~60s."
+            )
+            logger.info("Debug: sent ambiguous approval reply (LLM test)")
+
+        except Exception as e:
+            logger.exception("Debug send approval (LLM) failed")
             await self.send_message(f"*Error sending approval:* {e}")
 
     async def _handle_debug_send_invoice(self) -> None:

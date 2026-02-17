@@ -20,4 +20,4 @@ services:
     volumes:
       - ./data:/app/data
       - ./config:/app/config  # Writable for token.json
-    restart: unless-stopped
+    restart: always
