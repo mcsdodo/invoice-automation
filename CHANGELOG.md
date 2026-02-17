@@ -8,6 +8,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Debug button "Approval LLM (mngr)" to test LLM fallback approval classification path
+- Processed email message ID tracking to prevent re-processing same email on every poll cycle
+- INFO-level logging for LLM classification results and approval detection flow
 - LLM provider strategy pattern - switchable between Gemini and OpenAI-compatible APIs via `LLM_PROVIDER` env var
 - OpenAI-compatible LLM client (`src/llm/openai_client.py`) for Ollama and other OpenAI API-compatible services
 - LLM abstract base class (`src/llm/base.py`) with shared prompt logic and JSON parsing
@@ -32,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tech debt documentation for OAuth Docker workarounds
 
 ### Fixed
+- Approval keyword matching now uses whole-word boundaries instead of substring matching (prevents "ok" matching inside "pokracovat")
+- LLM approval prompt improved to recognize implicit approvals (e.g. "proceed", "hours are correct", Slovak equivalents)
+- Silent failure when LLM returned is_approval=False with confidence >= 0.7 now shows Telegram alert
+- Telegram markdown parse error in LLM result message (underscores in `is_approval` interpreted as italic)
 - Debug status Telegram message failing due to Markdown parse error (underscores in state name)
 - Playwright Chromium missing shared libraries in Docker (libxfixes3, etc.)
 - OAuth flow not working in Docker (added custom callback handler)
@@ -45,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive CLI test scripts (`scripts/00-03, 99`) previously removed as obsolete
 
 ### Changed
+- Docker restart policy changed from `unless-stopped` to `always`
 - Telegram approval messages now show email recipients and what will be sent at each step
 - `scripts/README.md` rewritten to lead with Telegram debug menu as primary testing method
 - README workflow section expanded with detailed state descriptions
