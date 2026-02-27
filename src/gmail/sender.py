@@ -10,6 +10,7 @@ from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email import encoders
+from email.utils import formatdate, formataddr
 from pathlib import Path
 
 from googleapiclient.discovery import Resource
@@ -73,12 +74,13 @@ def _create_message(
         message = MIMEText(body, "plain")
 
     # Set headers
-    message["to"] = to
-    message["from"] = settings.from_email
-    message["subject"] = subject
+    message["To"] = to
+    message["From"] = formataddr((settings.company_name, settings.from_email))
+    message["Subject"] = subject
+    message["Date"] = formatdate(localtime=True)
 
     if cc:
-        message["cc"] = cc
+        message["Cc"] = cc
 
     # Set threading headers for replies
     if in_reply_to:
