@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Status button always visible in Telegram (not gated by debug menu)
 - Debug button "Approval LLM (mngr)" to test LLM fallback approval classification path
 - Processed email message ID tracking to prevent re-processing same email on every poll cycle
 - INFO-level logging for LLM classification results and approval detection flow
@@ -57,6 +58,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive CLI test scripts (`scripts/00-03, 99`) previously removed as obsolete
 
 ### Changed
+- Telegram debug buttons (Drop PDF, Send Approval, Send Invoice, Reset) gated behind `TELEGRAM_DEBUG_MENU` config; Status always available
+- `TELEGRAM_DEBUG_MENU` in docker-compose now reads from `.env` with default `true`
 - Docker restart policy changed from `unless-stopped` to `always`
 - Telegram approval messages now show email recipients and what will be sent at each step
 - `scripts/README.md` rewritten to lead with Telegram debug menu as primary testing method
