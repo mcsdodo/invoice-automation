@@ -50,7 +50,7 @@ def parse_timesheet(pdf_path: Path | str) -> TimesheetInfo:
         )
 
         logger.info(
-            "Parsed timesheet: %d hours for %s %d",
+            "Parsed timesheet: %g hours for %s %d",
             info.total_hours,
             info.month_name,
             info.year,
@@ -84,49 +84,48 @@ def _extract_text(pdf_path: Path) -> str:
     return full_text
 
 
-def _extract_total_hours(text: str) -> int:
+def _extract_total_hours(text: str) -> float:
     """
     Extract total hours from timesheet text.
 
     Looks for patterns like:
     - "Total: 160h"
     - "Total Hours: 160"
+    - "Total Logged: 169"
     - "Logged: 160h"
-    - Lines ending with total hours value
     """
     # Common patterns for total hours in Jira timesheets
     patterns = [
-        # "Total: 160h" or "Total: 160 h"
-        r"Total[:\s]+(\d+)\s*h",
-        # "Total Hours: 160"
-        r"Total\s+Hours[:\s]+(\d+)",
-        # "Logged: 160h"
-        r"Logged[:\s]+(\d+)\s*h",
+        # "Total Logged: 169" or "Total Logged: 169.5"
+        r"Total\s+Logged[:\s]+([\d.]+)\s*h?",
+        # "Total: 160h" or "Total: 160.5 h" or "Total: 160"
+        r"Total[:\s]+([\d.]+)\s*h?",
+        # "Total Hours: 160" or "Total Hours: 160.5"
+        r"Total\s+Hours[:\s]+([\d.]+)",
+        # "Logged: 160h" or "Logged: 160.5h"
+        r"Logged[:\s]+([\d.]+)\s*h",
         # "Sum: 160h"
-        r"Sum[:\s]+(\d+)\s*h",
+        r"Sum[:\s]+([\d.]+)\s*h",
         # "160h total"
-        r"(\d+)\s*h\s+total",
-        # Look for standalone hour values at end of document (common in summaries)
-        r"\b(\d{2,3})\s*h?\s*$",
+        r"([\d.]+)\s*h\s+total",
     ]
 
     for pattern in patterns:
         match = re.search(pattern, text, re.IGNORECASE | re.MULTILINE)
         if match:
-            hours = int(match.group(1))
+            hours = float(match.group(1))
             # Sanity check: hours should be reasonable (1-500 for monthly timesheet)
             if 1 <= hours <= 500:
-                logger.debug("Found total hours: %d (pattern: %s)", hours, pattern)
+                logger.debug("Found total hours: %s (pattern: %s)", hours, pattern)
                 return hours
 
     # Fallback: look for the largest reasonable hour value in the document
-    all_hours = re.findall(r"\b(\d{2,3})\s*h\b", text, re.IGNORECASE)
+    all_hours = re.findall(r"\b(\d{2,3}(?:\.\d+)?)\s*h\b", text, re.IGNORECASE)
     if all_hours:
-        hours_values = [int(h) for h in all_hours if 1 <= int(h) <= 500]
+        hours_values = [float(h) for h in all_hours if 1 <= float(h) <= 500]
         if hours_values:
-            # The total is likely the largest value
             max_hours = max(hours_values)
-            logger.debug("Found total hours via fallback (max): %d", max_hours)
+            logger.debug("Found total hours via fallback (max): %s", max_hours)
             return max_hours
 
     raise TimesheetParseError("Could not extract total hours from timesheet")

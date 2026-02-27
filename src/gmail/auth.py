@@ -161,8 +161,13 @@ def get_credentials() -> Credentials:
         # Check if refresh is needed (expired or < 5 min remaining)
         if _needs_refresh(creds):
             if creds.refresh_token:
-                creds = _refresh_credentials(creds)
-                _save_credentials(creds, token_path)
+                try:
+                    creds = _refresh_credentials(creds)
+                    _save_credentials(creds, token_path)
+                except Exception:
+                    logger.warning("Token refresh failed, running OAuth flow")
+                    creds = _run_oauth_flow(credentials_path)
+                    _save_credentials(creds, token_path)
             else:
                 # No refresh token, need new OAuth flow
                 logger.warning("No refresh token, running OAuth flow")

@@ -76,7 +76,7 @@ class ApprovalResult:
     """Result of an approval interaction."""
 
     action: ApprovalAction
-    edited_hours: int | None = None
+    edited_hours: float | None = None
 
 
 # Type alias for callback handlers
@@ -361,10 +361,10 @@ class TelegramBot:
         return (
             f"*New Timesheet Detected*\n\n"
             f"*Period:* {timesheet_info.date_range}\n"
-            f"*Total Hours:* {timesheet_info.total_hours}h\n\n"
+            f"*Total Hours:* {timesheet_info.total_hours:g}h\n\n"
             f"*Invoice Breakdown:*\n"
-            f"  - Software architecture: {timesheet_info.arch_hours}h\n"
-            f"  - Testing: {timesheet_info.test_hours}h\n\n"
+            f"  - Software architecture: {timesheet_info.arch_hours:g}h\n"
+            f"  - Testing: {timesheet_info.test_hours:g}h\n\n"
             f"*Total Amount:* {total_amount:.2f} {settings.currency}\n\n"
             f"*Approve to send:*\n"
             f"1. Timesheet + approval request to {settings.manager_email} (cc: {settings.invoicing_dept_email})\n"
@@ -517,7 +517,7 @@ class TelegramBot:
 
         # Validate input
         try:
-            hours = int(text)
+            hours = float(text)
             if hours < 1 or hours > 300:
                 raise ValueError("Out of range")
         except ValueError:

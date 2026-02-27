@@ -37,7 +37,7 @@ class Settings(BaseSettings):
 
     # Invoice settings
     company_name: str = "YourCompany inc."
-    hourly_rate: int = 10
+    hourly_rate: float = 10
     currency: str = "EUR"
 
     # LLM

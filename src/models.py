@@ -19,20 +19,20 @@ class WorkflowState(str, Enum):
 class TimesheetInfo(BaseModel):
     """Information extracted from a timesheet PDF."""
 
-    total_hours: int
+    total_hours: float
     date_range: str  # e.g., "01/Jan/26 - 31/Jan/26"
     month: int
     year: int
 
     @property
-    def arch_hours(self) -> int:
+    def arch_hours(self) -> float:
         """Hours for 'navrh soft. arch.' line (total - 16)."""
         return max(0, self.total_hours - 16)
 
     @property
-    def test_hours(self) -> int:
+    def test_hours(self) -> float:
         """Hours for 'testovanie' line (fixed at 16)."""
-        return 16
+        return min(16, self.total_hours)
 
     @property
     def month_name(self) -> str:
@@ -64,6 +64,7 @@ class WorkflowData(BaseModel):
     # Downloaded files
     invoice_pdf_path: Path | None = None
     approval_email_html: str | None = None
+    merged_pdf_path: Path | None = None
 
     # Timeout tracking
     waiting_since: datetime | None = None
@@ -85,6 +86,7 @@ class WorkflowData(BaseModel):
         self.accountant_thread_id = None
         self.invoice_pdf_path = None
         self.approval_email_html = None
+        self.merged_pdf_path = None
         self.waiting_since = None
         self.telegram_message_id = None
         self.processed_message_ids = []

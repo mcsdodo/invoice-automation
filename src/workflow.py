@@ -106,12 +106,14 @@ class WorkflowCoordinator:
             # Re-send docs ready approval message
             logger.info("Recovering ALL_DOCS_READY state - re-sending approval message")
             info = self.data.timesheet_info
+            merged_name = Path(self.data.merged_pdf_path).name if self.data.merged_pdf_path else "merged PDF"
             details = (
-                f"All documents received:\n"
+                f"All documents received and merged:\n"
                 f"- Invoice from {settings.accountant_email}\n"
-                f"- Timesheet ({info.total_hours}h, {info.month:02d}/{info.year})\n"
+                f"- Timesheet ({info.total_hours:g}h, {info.month:02d}/{info.year})\n"
                 f"- Manager approval from {settings.manager_email}\n\n"
-                f"Approve to merge into one PDF and send to {settings.manager_email} (cc: {settings.invoicing_dept_email})"
+                f"Merged file: `{merged_name}`\n"
+                f"Review it in `data/temp/`, then approve to send to {settings.manager_email} (cc: {settings.invoicing_dept_email})"
             )
             msg_id = await self.bot.send_docs_ready_approval(details)
             self.data.telegram_message_id = msg_id
@@ -384,64 +386,76 @@ class WorkflowCoordinator:
             await self._check_all_docs_ready()
 
     async def _check_all_docs_ready(self) -> None:
-        """Check if both documents received, transition if so."""
+        """Check if both documents received, merge PDF and ask for approval."""
         if self.data.approval_received and self.data.invoice_received:
             self.data.state = WorkflowState.ALL_DOCS_READY
             self._save_state()
 
-            # Send approval request
             info = self.data.timesheet_info
+
+            # Pre-merge PDFs so user can review before approving
+            try:
+                await self.bot.send_message("📝 Merging documents for review...")
+
+                # Convert approval email to PDF
+                approval_pdf = Path("data/temp/approval.pdf")
+                await html_to_pdf(self.data.approval_email_html, approval_pdf)
+
+                # Merge PDFs
+                merged_path = Path(f"data/temp/merged_{info.month:02d}_{info.year}.pdf")
+                merge_pdfs(
+                    self.data.invoice_pdf_path,
+                    self.data.timesheet_path,
+                    approval_pdf,
+                    merged_path,
+                )
+                self.data.merged_pdf_path = merged_path
+                self._save_state()
+
+                await self.bot.send_message(f"✅ Merged PDF ready: `{merged_path.name}`")
+            except Exception as e:
+                logger.exception(f"Failed to merge PDFs: {e}")
+                error_msg = str(e)[:500]
+                await self.bot.send_error(f"Failed to merge PDFs: {error_msg}", "PDF merge")
+                return
+
+            # Send approval request
             details = (
-                f"All documents received:\n"
+                f"All documents received and merged:\n"
                 f"- Invoice from {settings.accountant_email}\n"
-                f"- Timesheet ({info.total_hours}h, {info.month:02d}/{info.year})\n"
+                f"- Timesheet ({info.total_hours:g}h, {info.month:02d}/{info.year})\n"
                 f"- Manager approval from {settings.manager_email}\n\n"
-                f"Approve to merge into one PDF and send to {settings.manager_email} (cc: {settings.invoicing_dept_email})"
+                f"Merged file: `{merged_path.name}`\n"
+                f"Review it in `data/temp/`, then approve to send to {settings.manager_email} (cc: {settings.invoicing_dept_email})"
             )
             msg_id = await self.bot.send_docs_ready_approval(details)
             self.data.telegram_message_id = msg_id
             self._save_state()
 
     async def _send_final_email(self) -> None:
-        """Merge PDFs and send final email."""
-        if not all([
-            self.data.invoice_pdf_path,
-            self.data.timesheet_path,
-            self.data.approval_email_html,
-            self.data.manager_thread_id,
-        ]):
-            await self.bot.send_error("Missing documents for final email", "")
+        """Send the pre-merged PDF as final email."""
+        merged_path = self.data.merged_pdf_path
+        if not merged_path or not Path(merged_path).exists():
+            await self.bot.send_error("Merged PDF not found. Try re-merging.", "")
             return
 
-        await self.bot.send_message("📝 Preparing final document...")
+        if not self.data.manager_thread_id:
+            await self.bot.send_error("Missing manager thread ID", "")
+            return
 
         try:
-            # Convert approval email to PDF
-            approval_pdf = Path("data/temp/approval.pdf")
-            await html_to_pdf(self.data.approval_email_html, approval_pdf)
-
-            # Merge PDFs
-            info = self.data.timesheet_info
-            merged_path = Path(f"data/temp/merged_{info.month:02d}_{info.year}.pdf")
-            merge_pdfs(
-                self.data.invoice_pdf_path,
-                self.data.timesheet_path,
-                approval_pdf,
-                merged_path,
-            )
-
             # Send as reply to manager thread
             await asyncio.to_thread(
                 reply_to_thread,
                 thread_id=self.data.manager_thread_id,
                 body="V prílohe.",
-                attachment_path=merged_path,
+                attachment_path=Path(merged_path),
             )
 
             await self.bot.send_message("✅ Final email sent!")
 
             # Archive and complete
-            await self._archive_files(merged_path)
+            await self._archive_files(Path(merged_path))
 
             self.data.state = WorkflowState.COMPLETE
             self._save_state()
@@ -457,7 +471,7 @@ class WorkflowCoordinator:
 
         except Exception as e:
             logger.exception(f"Failed to send final email: {e}")
-            error_msg = str(e)[:500]  # Truncate for Telegram
+            error_msg = str(e)[:500]
             await self.bot.send_error(f"Failed to send final email: {error_msg}", "Final email")
 
     async def _archive_files(self, merged_path: Path) -> None:
