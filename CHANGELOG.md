@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tech debt documentation for OAuth Docker workarounds
 
 ### Fixed
+- OAuth token refresh failure now falls back to interactive OAuth flow instead of crashing
+- Timesheet hours parser: handle "Total Logged: N" without `h` suffix, support decimal hours, remove fragile end-of-line fallback that matched dates
+- `hourly_rate` and `total_hours` changed from `int` to `float` throughout (config, models, parser, bot)
+- Pre-merge PDFs when all documents arrive (before approval button) so user can review merged file in `data/temp/`
 - Approval keyword matching now uses whole-word boundaries instead of substring matching (prevents "ok" matching inside "pokracovat")
 - LLM approval prompt improved to recognize implicit approvals (e.g. "proceed", "hours are correct", Slovak equivalents)
 - Silent failure when LLM returned is_approval=False with confidence >= 0.7 now shows Telegram alert
