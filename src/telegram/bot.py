@@ -59,7 +59,14 @@ class DebugButton(str, Enum):
     RESET = "🔄 Reset"
 
 
-# Persistent debug keyboard
+# Always-on keyboard (just Status)
+DEFAULT_KEYBOARD = ReplyKeyboardMarkup(
+    [[KeyboardButton(DebugButton.STATUS.value)]],
+    resize_keyboard=True,
+    is_persistent=True,
+)
+
+# Full debug keyboard
 DEBUG_KEYBOARD = ReplyKeyboardMarkup(
     [
         [KeyboardButton(DebugButton.STATUS.value), KeyboardButton(DebugButton.DROP_PDF.value)],
@@ -128,21 +135,20 @@ class TelegramBot:
         # Start polling in background
         await self._app.updater.start_polling(allowed_updates=Update.ALL_TYPES)
 
-        # Send startup message (with debug keyboard if enabled)
+        # Send startup message with appropriate keyboard
         if settings.telegram_debug_menu:
-            await self._app.bot.send_message(
-                chat_id=self._chat_id,
-                text="🤖 Bot started. Debug menu active.",
-                reply_markup=DEBUG_KEYBOARD,
-            )
-            logger.info("Telegram bot initialized with debug keyboard")
+            keyboard = DEBUG_KEYBOARD
+            text = "🤖 Bot started. Debug menu active."
         else:
-            await self._app.bot.send_message(
-                chat_id=self._chat_id,
-                text="🤖 Bot started.",
-                reply_markup=ReplyKeyboardRemove(),
-            )
-            logger.info("Telegram bot initialized")
+            keyboard = DEFAULT_KEYBOARD
+            text = "🤖 Bot started."
+
+        await self._app.bot.send_message(
+            chat_id=self._chat_id,
+            text=text,
+            reply_markup=keyboard,
+        )
+        logger.info("Telegram bot initialized (debug_menu=%s)", settings.telegram_debug_menu)
 
     async def shutdown(self) -> None:
         """Shutdown the bot gracefully."""
@@ -491,25 +497,28 @@ class TelegramBot:
 
         text = update.message.text.strip()
 
-        # Debug buttons (check before edit mode)
+        # Status button (always available)
         if text == DebugButton.STATUS.value:
             await self._handle_debug_status()
             return
-        elif text == DebugButton.DROP_PDF.value:
-            await self._handle_debug_drop_pdf()
-            return
-        elif text == DebugButton.SEND_APPROVAL.value:
-            await self._handle_debug_send_approval()
-            return
-        elif text == DebugButton.SEND_APPROVAL_LLM.value:
-            await self._handle_debug_send_approval_llm()
-            return
-        elif text == DebugButton.SEND_INVOICE.value:
-            await self._handle_debug_send_invoice()
-            return
-        elif text == DebugButton.RESET.value:
-            await self._handle_debug_reset()
-            return
+
+        # Debug-only buttons (gated by config)
+        if settings.telegram_debug_menu:
+            if text == DebugButton.DROP_PDF.value:
+                await self._handle_debug_drop_pdf()
+                return
+            elif text == DebugButton.SEND_APPROVAL.value:
+                await self._handle_debug_send_approval()
+                return
+            elif text == DebugButton.SEND_APPROVAL_LLM.value:
+                await self._handle_debug_send_approval_llm()
+                return
+            elif text == DebugButton.SEND_INVOICE.value:
+                await self._handle_debug_send_invoice()
+                return
+            elif text == DebugButton.RESET.value:
+                await self._handle_debug_reset()
+                return
 
         # Only process further if in edit mode
         if not self._edit_mode:
