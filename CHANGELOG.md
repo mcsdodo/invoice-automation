@@ -11,6 +11,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Environment-based `.env` file layering: `docker-compose.yml` loads `.env` base + `.env.${ENVIRONMENT}` override (`required: false`), switched via host `ENVIRONMENT` var (default: dev)
 
 ### Changed
+- Telegram startup message now shows email config (manager/invoicing/accountant) instead of watch folder path
+- Removed `TELEGRAM_DEBUG_MENU` from compose `environment` block so `.env.prod` layering controls it
 - `.gitignore` now ignores all `.env.*` files except `.env.example`
 
 ---
