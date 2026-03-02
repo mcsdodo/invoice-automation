@@ -8,6 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Environment-based `.env` file layering: `docker-compose.yml` loads `.env` base + `.env.${ENVIRONMENT}` override (`required: false`), switched via host `ENVIRONMENT` var (default: dev)
+
+### Changed
+- `.gitignore` now ignores all `.env.*` files except `.env.example`
+
+---
+
+### Added
 - Status button always visible in Telegram (not gated by debug menu)
 - Debug button "Approval LLM (mngr)" to test LLM fallback approval classification path
 - Processed email message ID tracking to prevent re-processing same email on every poll cycle
