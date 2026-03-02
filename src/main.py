@@ -96,7 +96,9 @@ class InvoiceAutomationService:
         logger.info(f"Service started, watching folder: {settings.watch_folder}")
         await self.bot.send_message(
             f"🚀 Invoice Automation Service started!\n"
-            f"Watching: {settings.watch_folder}"
+            f"Manager: {settings.manager_email}\n"
+            f"Invoicing: {settings.invoicing_dept_email}\n"
+            f"Accountant: {settings.accountant_email}"
         )
 
         # Run main loops
