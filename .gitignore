@@ -15,8 +15,8 @@ build/
 
 # Environment
 .env
-.env.local
-.env.*.local
+.env.*
+!.env.example
 
 # Credentials (keep examples, ignore real)
 config/credentials.json
