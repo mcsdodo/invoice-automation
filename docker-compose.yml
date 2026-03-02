@@ -6,7 +6,6 @@ services:
       - path: .env.${ENVIRONMENT:-local}
         required: false
     environment:
-      - ENVIRONMENT=${ENVIRONMENT:-dev}
       # Force unbuffered Python output for real-time logs
       - PYTHONUNBUFFERED=1
       # Allow HTTP for OAuth redirect (localhost development)
