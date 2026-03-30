@@ -43,7 +43,7 @@ State is persisted to `data/state.json` - the service can restart without losing
 
 1. Create a bot via @BotFather
 2. Send a message to the bot (or add to a group)
-3. Get chat ID: `https://api.telegram.org/<YOUR_BOT_TOKEN>/getUpdates`
+3. Get chat ID: `https://api.telegram.org/bot<YOUR_BOT_TOKEN>/getUpdates`
 
 **For group chats**: Disable privacy mode via BotFather:
 - `/setprivacy` → Select your bot → Disable
