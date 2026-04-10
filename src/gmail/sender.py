@@ -156,6 +156,7 @@ def reply_to_thread(
     thread_id: str,
     body: str,
     attachment_path: Path | None = None,
+    cc: str | None = None,
     service: Resource | None = None,
 ) -> tuple[str, str]:
     """Reply to an existing email thread.
@@ -167,6 +168,7 @@ def reply_to_thread(
         thread_id: Gmail thread ID to reply to.
         body: Reply body (plain text).
         attachment_path: Path to file to attach.
+        cc: CC recipient email address.
         service: Gmail API service (created if not provided).
 
     Returns:
@@ -227,6 +229,7 @@ def reply_to_thread(
         to=original_to,
         subject=subject,
         body=body,
+        cc=cc,
         attachment_path=attachment_path,
         thread_id=thread_id,
         in_reply_to=in_reply_to,

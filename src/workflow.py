@@ -444,12 +444,13 @@ class WorkflowCoordinator:
             return
 
         try:
-            # Send as reply to manager thread
+            # Send as reply to manager thread (CC invoicing dept)
             await asyncio.to_thread(
                 reply_to_thread,
                 thread_id=self.data.manager_thread_id,
                 body="V prílohe.",
                 attachment_path=Path(merged_path),
+                cc=settings.invoicing_dept_email,
             )
 
             await self.bot.send_message("✅ Final email sent!")
