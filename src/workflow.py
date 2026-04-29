@@ -507,7 +507,7 @@ class WorkflowCoordinator:
             if f and Path(f).exists():
                 shutil.move(str(f), str(cancelled_dir / Path(f).name))
 
-        await self.bot.send_message(f"❌ Workflow cancelled. Files moved to {cancelled_dir}")
+        await self.bot.send_message(f"❌ Workflow cancelled. Files moved to `{cancelled_dir}`")
 
         self.data.reset()
         self._save_state()
