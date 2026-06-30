@@ -43,6 +43,12 @@ All steps traced in Telegram with inline button approvals.
 └─────────────────────────────────────────────────────────────────┘
 ```
 
+### Watch Source
+
+Google Drive is the default watch source (`WATCH_SOURCE=gdrive`), configured to poll `_documents_intake/techlab/invoicing_automation`. It reuses the Gmail OAuth client with the added `drive` scope (one-time re-consent required on first run). Processed files are automatically moved to `processed/` and `errors/` subfolders in Drive, with deduplication tracking stored in `data/gdrive.db` (SQLite). For local folder watching, set `WATCH_SOURCE=local` to use the original folder watcher implementation.
+
+A stuck `in_progress` row (e.g. from a process crash mid-workflow) can be cleared with the Telegram `/reset` command.
+
 ## Tech Stack
 
 - **Runtime:** Python 3.12, asyncio
@@ -165,12 +171,20 @@ python -m venv .venv
 
 ## Environment Variables
 
-All settings via environment variables (see `.env.example`):
+All settings via environment variables (see [.env.example](./.env.example)):
 
 ```env
 # Folders
 WATCH_FOLDER=/data/invoices/incoming
 ARCHIVE_FOLDER=/data/invoices/archive
+
+# Watch source
+WATCH_SOURCE=gdrive
+GDRIVE_WATCH_PATH=_documents_intake/techlab/invoicing_automation
+GDRIVE_POLL_INTERVAL_SECONDS=30
+GDRIVE_DB_PATH=/app/data/gdrive.db
+GDRIVE_PROCESSED_SUBFOLDER=processed
+GDRIVE_ERRORS_SUBFOLDER=errors
 
 # Gmail OAuth
 GMAIL_CREDENTIALS_FILE=/config/credentials.json

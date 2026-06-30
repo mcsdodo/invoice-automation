@@ -16,6 +16,9 @@ services:
       - GMAIL_CREDENTIALS_FILE=/app/config/credentials.json
       - GMAIL_TOKEN_FILE=/app/config/token.json
       - GMAIL_POLL_INTERVAL=10
+      - WATCH_SOURCE=${WATCH_SOURCE:-gdrive}
+      - GDRIVE_WATCH_PATH=${GDRIVE_WATCH_PATH:-_documents_intake/techlab/invoicing_automation}
+      - GDRIVE_DB_PATH=/app/data/gdrive.db
     ports:
       # OAuth callback port (only needed for initial auth)
       - "8080:8080"

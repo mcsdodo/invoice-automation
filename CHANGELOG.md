@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2026-06-30]
+
+### Added
+- Google Drive watch source (`WATCH_SOURCE=gdrive`, default) — polls `_documents_intake/techlab/invoicing_automation`, dedups via SQLite, moves processed files to `processed/`/`errors/`; local folder watcher retained via `WATCH_SOURCE=local`. Requires one-time OAuth re-consent for the added Drive scope.
+
 ## [2026-04-29]
 
 ### Fixed
