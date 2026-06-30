@@ -21,6 +21,7 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.send",
     "https://www.googleapis.com/auth/gmail.readonly",
     "https://www.googleapis.com/auth/gmail.modify",
+    "https://www.googleapis.com/auth/drive",
 ]
 
 # Minimum remaining token lifetime before proactive refresh (5 minutes)
@@ -156,6 +157,12 @@ def get_credentials() -> Credentials:
 
     # Try to load existing credentials
     creds = _load_credentials(token_path)
+
+    # A token minted for an older scope set is still "valid" but will 403 on the
+    # new scope. Force a fresh OAuth flow when granted scopes are stale.
+    if creds is not None and not creds.has_scopes(set(SCOPES)):
+        logger.warning("Stored token missing required scopes; re-running OAuth flow")
+        creds = None
 
     if creds is not None:
         # Check if refresh is needed (expired or < 5 min remaining)
