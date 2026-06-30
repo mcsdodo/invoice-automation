@@ -12,6 +12,11 @@ from src.telegram.bot import TelegramBot, ApprovalResult
 from src.gmail.monitor import GmailMonitor
 from src.llm import LLMClient, create_llm_client
 from src.workflow import WorkflowCoordinator
+from src.models import WorkflowState
+from src.gdrive.auth import get_drive_service
+from src.gdrive.client import DriveClient
+from src.gdrive.db import GDriveDB
+from src.gdrive.watcher import GDriveWatcher
 
 # Configure logging - WARNING level to reduce noise
 logging.basicConfig(
@@ -25,6 +30,17 @@ logger = logging.getLogger(__name__)
 # Set our app loggers to INFO for important messages
 logging.getLogger("src").setLevel(logging.INFO)
 logging.getLogger("__main__").setLevel(logging.INFO)
+
+
+def build_watcher(workflow, *, drive_client=None, gdrive_db=None):
+    """Return the configured watcher (local FolderWatcher or GDriveWatcher)."""
+    if settings.watch_source == "local":
+        return FolderWatcher()
+    return GDriveWatcher(
+        client=drive_client,
+        db=gdrive_db,
+        is_workflow_idle=lambda: workflow.data.state == WorkflowState.IDLE,
+    )
 
 
 class InvoiceAutomationService:
@@ -48,7 +64,6 @@ class InvoiceAutomationService:
         settings.archive_folder.mkdir(parents=True, exist_ok=True)
 
         # Initialize components
-        self.watcher = FolderWatcher()
         self.bot = TelegramBot()
         self.gmail_monitor = GmailMonitor()
         self.llm = create_llm_client()
@@ -60,10 +75,22 @@ class InvoiceAutomationService:
         get_gmail_service()  # This will prompt for OAuth if no token
         logger.info("Gmail credentials OK")
 
+        drive_client = None
+        gdrive_db = None
+        if settings.watch_source != "local":
+            drive_client = DriveClient(get_drive_service())
+            gdrive_db = GDriveDB(settings.gdrive_db_path)
+
         self.workflow = WorkflowCoordinator(
             telegram_bot=self.bot,
             gmail_monitor=self.gmail_monitor,
             llm_client=self.llm,
+            drive_client=drive_client,
+            gdrive_db=gdrive_db,
+        )
+
+        self.watcher = build_watcher(
+            self.workflow, drive_client=drive_client, gdrive_db=gdrive_db
         )
 
         # Set up Telegram callback handler
@@ -86,6 +113,10 @@ class InvoiceAutomationService:
                     f.unlink()
             for f in Path("data/incoming").glob("*.pdf"):
                 f.unlink()
+            if gdrive_db is not None:
+                cleared = gdrive_db.clear_in_progress()
+                if cleared:
+                    logger.info("Cleared %d stuck in_progress Drive row(s)", cleared)
             logger.info("Workflow reset via Telegram command")
         self.bot.set_reset_handler(on_reset)
 
@@ -129,6 +160,8 @@ class InvoiceAutomationService:
                     await self.workflow.handle_event({
                         "type": "new_timesheet",
                         "path": event.file_path,
+                        "gdrive_file_id": event.gdrive_file_id,
+                        "gdrive_folder_id": event.gdrive_folder_id,
                     })
                 except asyncio.TimeoutError:
                     continue
