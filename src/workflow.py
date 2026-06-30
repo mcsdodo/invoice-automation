@@ -29,10 +29,14 @@ class WorkflowCoordinator:
         telegram_bot: TelegramBot,
         gmail_monitor: GmailMonitor,
         llm_client: LLMClient,
+        drive_client=None,
+        gdrive_db=None,
     ):
         self.bot = telegram_bot
         self.gmail_monitor = gmail_monitor
         self.llm = llm_client
+        self.drive_client = drive_client
+        self.gdrive_db = gdrive_db
         self.data = WorkflowData()
         self.event_queue: asyncio.Queue = asyncio.Queue()
         self._lock = asyncio.Lock()
@@ -139,7 +143,11 @@ class WorkflowCoordinator:
         logger.info(f"Processing event: {event_type} in state: {self.data.state}")
 
         if event_type == "new_timesheet":
-            await self._handle_new_timesheet(event["path"])
+            await self._handle_new_timesheet(
+                event["path"],
+                event.get("gdrive_file_id"),
+                event.get("gdrive_folder_id"),
+            )
         elif event_type == "approval_result":
             await self._handle_approval_result(event["result"])
         elif event_type == "email_received":
@@ -147,7 +155,12 @@ class WorkflowCoordinator:
         else:
             logger.warning(f"Unknown event type: {event_type}")
 
-    async def _handle_new_timesheet(self, path: Path) -> None:
+    async def _handle_new_timesheet(
+        self,
+        path: Path,
+        gdrive_file_id: str | None = None,
+        gdrive_folder_id: str | None = None,
+    ) -> None:
         """Handle a new timesheet PDF being detected."""
         if self.data.state != WorkflowState.IDLE:
             logger.warning(f"Ignoring new timesheet, not in IDLE state")
@@ -156,6 +169,9 @@ class WorkflowCoordinator:
                 f"Current state: {self.data.state.value}"
             )
             return
+
+        self.data.gdrive_file_id = gdrive_file_id
+        self.data.gdrive_folder_id = gdrive_folder_id
 
         try:
             # Parse the timesheet
@@ -182,6 +198,7 @@ class WorkflowCoordinator:
         except Exception as e:
             logger.exception(f"Failed to parse timesheet: {e}")
             await self.bot.send_error(f"Failed to parse timesheet: {e}", str(path))
+            await self._finalize_gdrive(settings.gdrive_errors_subfolder, "error")
 
     async def _handle_approval_result(self, result: ApprovalResult) -> None:
         """Handle Telegram approval button press."""
@@ -493,6 +510,8 @@ class WorkflowCoordinator:
                 shutil.move(str(src), str(dst))
                 logger.info(f"Archived {src} -> {dst}")
 
+        await self._finalize_gdrive(settings.gdrive_processed_subfolder, "done")
+
     async def _cancel_workflow(self) -> None:
         """Cancel current workflow and archive files."""
         cancelled_dir = settings.archive_folder / "cancelled" / datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -509,8 +528,33 @@ class WorkflowCoordinator:
 
         await self.bot.send_message(f"❌ Workflow cancelled. Files moved to `{cancelled_dir}`")
 
+        await self._finalize_gdrive(settings.gdrive_errors_subfolder, "error")
         self.data.reset()
         self._save_state()
+
+    async def _finalize_gdrive(self, subfolder: str, mark: str) -> None:
+        """Move the Drive origin file to `subfolder` and set its DB status.
+
+        No-op when not running off Google Drive. Best-effort: a Drive API
+        failure notifies via Telegram but never crashes the workflow.
+        """
+        file_id = self.data.gdrive_file_id
+        folder_id = self.data.gdrive_folder_id
+        if not self.drive_client or not file_id or not folder_id:
+            return
+        try:
+            dest_id = self.drive_client.ensure_subfolder(folder_id, subfolder)
+            self.drive_client.move(file_id, dest_id)
+            if self.gdrive_db:
+                if mark == "done":
+                    self.gdrive_db.mark_done(file_id)
+                else:
+                    self.gdrive_db.mark_error(file_id)
+        except Exception as e:
+            logger.exception("Failed to move Drive file %s to %s: %s", file_id, subfolder, e)
+            await self.bot.send_error(
+                f"Drive move to {subfolder}/ failed: {e}", file_id
+            )
 
     async def _check_waiting_timeout(self) -> None:
         """Check if WAITING_DOCS has timed out."""

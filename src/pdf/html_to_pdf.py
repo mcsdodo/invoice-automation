@@ -3,7 +3,10 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import Self
+try:
+    from typing import Self
+except ImportError:  # Python < 3.11
+    from typing_extensions import Self
 
 from playwright.async_api import Browser, async_playwright, Playwright
 
