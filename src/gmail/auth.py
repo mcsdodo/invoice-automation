@@ -3,6 +3,7 @@
 Handles OAuth 2.0 flow, token storage, and automatic refresh.
 """
 
+import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
@@ -26,6 +27,15 @@ SCOPES = [
 
 # Minimum remaining token lifetime before proactive refresh (5 minutes)
 MIN_TOKEN_LIFETIME_SECONDS = 300
+
+
+def _token_granted_scopes(token_path: Path) -> set[str]:
+    """Scopes actually granted in the stored token file (empty set if unreadable)."""
+    try:
+        info = json.loads(token_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return set()
+    return set(info.get("scopes") or [])
 
 
 def _load_credentials(token_path: Path) -> Credentials | None:
@@ -160,7 +170,7 @@ def get_credentials() -> Credentials:
 
     # A token minted for an older scope set is still "valid" but will 403 on the
     # new scope. Force a fresh OAuth flow when granted scopes are stale.
-    if creds is not None and not creds.has_scopes(set(SCOPES)):
+    if creds is not None and not set(SCOPES).issubset(_token_granted_scopes(token_path)):
         logger.warning("Stored token missing required scopes; re-running OAuth flow")
         creds = None
 
