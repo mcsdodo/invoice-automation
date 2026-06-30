@@ -97,6 +97,27 @@ def _refresh_credentials(creds: Credentials) -> Credentials:
         raise
 
 
+def _resolve_redirect_uri(host: str, port: int, configured: str) -> str:
+    """Return the OAuth redirect URI to use.
+
+    Returns *configured* verbatim when it is truthy, otherwise falls back to
+    the localhost dev-flow URI ``http://{host}:{port}/``.
+    """
+    return configured if configured else f"http://{host}:{port}/"
+
+
+def _is_oauth_callback(query: str) -> bool:
+    """Return True iff the WSGI QUERY_STRING carries an OAuth callback.
+
+    A real callback always contains either a ``code`` or an ``error``
+    parameter.  Probe/prefetch/favicon hits arrive with no query string at
+    all and must be ignored so the server loop does not consume them.
+    """
+    from urllib.parse import parse_qs
+    params = parse_qs(query)
+    return bool(params.get("code") or params.get("error"))
+
+
 def _run_oauth_flow(credentials_path: Path) -> Credentials:
     """Run interactive OAuth flow to get new credentials."""
     if not credentials_path.exists():
@@ -106,16 +127,18 @@ def _run_oauth_flow(credentials_path: Path) -> Credentials:
         )
 
     import sys
+    import time
     from wsgiref.simple_server import make_server
-    import threading
 
     port = settings.oauth_callback_port
     host = settings.oauth_callback_host
+    redirect_uri = _resolve_redirect_uri(host, port, settings.oauth_redirect_uri)
+    timeout_seconds = settings.oauth_callback_timeout_seconds
 
     flow = InstalledAppFlow.from_client_secrets_file(
         str(credentials_path), SCOPES
     )
-    flow.redirect_uri = f"http://{host}:{port}/"
+    flow.redirect_uri = redirect_uri
 
     # Generate auth URL with state
     auth_url, state = flow.authorization_url(access_type="offline", prompt="consent")
@@ -123,29 +146,42 @@ def _run_oauth_flow(credentials_path: Path) -> Credentials:
     logger.warning("=" * 60)
     logger.warning("OAUTH AUTHENTICATION REQUIRED")
     logger.warning("=" * 60)
-    logger.warning(f"Open this URL in your browser:")
+    logger.warning("Open this URL in your browser:")
     logger.warning(auth_url)
     logger.warning("=" * 60)
-    logger.warning(f"Waiting for callback on http://{host}:{port}/ ...")
+    logger.warning("Waiting for callback on %s ...", redirect_uri)
     sys.stdout.flush()
     sys.stderr.flush()
 
-    # Simple WSGI app to capture the callback
-    authorization_response = [None]
+    # WSGI app that captures the callback only when the query carries code/error.
+    # Probe / prefetch / favicon hits are ignored so they don't consume the handler.
+    captured_query: list[str | None] = [None]
 
     def wsgi_app(environ, start_response):
-        from urllib.parse import urlunsplit
         query = environ.get("QUERY_STRING", "")
-        authorization_response[0] = f"http://{host}:{port}/?{query}"
-        start_response("200 OK", [("Content-Type", "text/html")])
-        return [b"<html><body><h1>Authorization successful!</h1><p>You can close this window.</p></body></html>"]
+        if _is_oauth_callback(query):
+            captured_query[0] = query
+            start_response("200 OK", [("Content-Type", "text/html; charset=utf-8")])
+            return [b"<html><body><h1>Authorization successful!</h1><p>You can close this window.</p></body></html>"]
+        # Not a real callback — return a waiting page
+        start_response("200 OK", [("Content-Type", "text/html; charset=utf-8")])
+        return [b"<html><body><p>Waiting for OAuth authorization...</p></body></html>"]
 
-    # Start server
     server = make_server("0.0.0.0", port, wsgi_app)
-    server.handle_request()  # Handle single request
+    server.timeout = 1  # 1-second poll so the loop stays responsive
 
+    deadline = time.monotonic() + timeout_seconds
+    while captured_query[0] is None:
+        if time.monotonic() >= deadline:
+            raise TimeoutError(
+                f"OAuth callback not received within {timeout_seconds} seconds. "
+                "Restart the container to re-issue the authorization URL."
+            )
+        server.handle_request()
+
+    authorization_response = f"{redirect_uri}?{captured_query[0]}"
     # Exchange code for token
-    flow.fetch_token(authorization_response=authorization_response[0])
+    flow.fetch_token(authorization_response=authorization_response)
     logger.warning("OAuth flow completed successfully!")
     return flow.credentials
 

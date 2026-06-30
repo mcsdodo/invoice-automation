@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     gmail_token_file: Path = Path("config/token.json")
     oauth_callback_host: str = "localhost"  # For redirect URI (use VM IP in production)
     oauth_callback_port: int = 8080
+    # Full public OAuth redirect URI (e.g. https://invoice-merging.lacny.me/oauth2callback).
+    # Empty string = use the localhost dev flow (http://{host}:{port}/).
+    oauth_redirect_uri: str = ""
+    # Max seconds to wait for the OAuth callback before giving up (container restart re-issues the URL).
+    oauth_callback_timeout_seconds: int = 600
 
     # Telegram
     telegram_bot_token: str

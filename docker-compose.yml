@@ -3,11 +3,15 @@ services:
     image: invoice-automation:latest
     build: .
     # Env is injected by Komodo (see komodo.toml [[stack]] environment block).
-    # Local dev: create a .env and add an `env_file: [.env]` line, and set
-    # INVOICE_DATA_DIR=./ so the bind mounts resolve to ./data and ./config.
-    # OAuth callback port (8080) intentionally not published — production uses a
-    # pre-consented token.json copied to the host config mount. Re-add a
-    # `ports: ["8080:8080"]` line temporarily only if an on-host re-consent is ever needed.
+    # Local dev: create a .env, add `env_file: [.env]`, and set INVOICE_DATA_DIR=./
+    # so the bind mounts resolve to ./data and ./config.
+    ports:
+      # OAuth consent callback — Caddy routes ${INVOICE_MERGING_DOMAIN} → host:8080 → here.
+      # The callback server only listens during a one-time consent; harmless 502 otherwise.
+      - "8080:8080"
+    labels:
+      caddy: ${INVOICE_MERGING_DOMAIN:-invoice-merging.lan}
+      caddy.reverse_proxy: "{{upstreams 8080}}"
     volumes:
       - ${INVOICE_DATA_DIR:-/mnt/shared_configs/invoice-automation}/data:/app/data
       - ${INVOICE_DATA_DIR:-/mnt/shared_configs/invoice-automation}/config:/app/config
