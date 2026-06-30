@@ -2,9 +2,37 @@ services:
   invoice-automation:
     image: invoice-automation:latest
     build: .
-    # Env is injected by Komodo (see komodo.toml [[stack]] environment block).
-    # Local dev: create a .env, add `env_file: [.env]`, and set INVOICE_DATA_DIR=./
-    # so the bind mounts resolve to ./data and ./config.
+    # Env values come from the komodo.toml [[stack]] environment block, which Komodo
+    # writes to a generated .env in the run dir; compose interpolates ${VAR} below into
+    # the container (the canonical pattern used by voice-assistant / personal-assistant —
+    # no stack relies on env_file:). Local dev: drop a .env in this dir (compose auto-reads
+    # it for ${VAR}) and set INVOICE_DATA_DIR=./ so the bind mounts resolve to ./data, ./config.
+    environment:
+      - WATCH_SOURCE=${WATCH_SOURCE}
+      - GDRIVE_WATCH_PATH=${GDRIVE_WATCH_PATH}
+      - GDRIVE_POLL_INTERVAL_SECONDS=${GDRIVE_POLL_INTERVAL_SECONDS}
+      - GDRIVE_DB_PATH=${GDRIVE_DB_PATH}
+      - WATCH_FOLDER=${WATCH_FOLDER}
+      - ARCHIVE_FOLDER=${ARCHIVE_FOLDER}
+      - GMAIL_CREDENTIALS_FILE=${GMAIL_CREDENTIALS_FILE}
+      - GMAIL_TOKEN_FILE=${GMAIL_TOKEN_FILE}
+      - OAUTHLIB_INSECURE_TRANSPORT=${OAUTHLIB_INSECURE_TRANSPORT}
+      - OAUTH_REDIRECT_URI=${OAUTH_REDIRECT_URI}
+      - PYTHONUNBUFFERED=${PYTHONUNBUFFERED}
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - TELEGRAM_BOT_NAME=${TELEGRAM_BOT_NAME}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
+      - FROM_EMAIL=${FROM_EMAIL}
+      - MANAGER_EMAIL=${MANAGER_EMAIL}
+      - INVOICING_DEPT_EMAIL=${INVOICING_DEPT_EMAIL}
+      - ACCOUNTANT_EMAIL=${ACCOUNTANT_EMAIL}
+      - COMPANY_NAME=${COMPANY_NAME}
+      - HOURLY_RATE=${HOURLY_RATE}
+      - CURRENCY=${CURRENCY}
+      - LLM_PROVIDER=${LLM_PROVIDER}
+      - LLM_MODEL=${LLM_MODEL}
+      - GEMINI_API_KEY=${GEMINI_API_KEY}
+      - APPROVAL_KEYWORDS=${APPROVAL_KEYWORDS}
     ports:
       # OAuth consent callback — Caddy routes ${INVOICE_MERGING_DOMAIN} → host:8080 → here.
       # The callback server only listens during a one-time consent; harmless 502 otherwise.
