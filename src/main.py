@@ -32,7 +32,7 @@ logging.getLogger("src").setLevel(logging.INFO)
 logging.getLogger("__main__").setLevel(logging.INFO)
 
 
-def build_watcher(workflow, *, drive_client=None, gdrive_db=None):
+def build_watcher(workflow, *, drive_client=None, gdrive_db=None, on_error=None):
     """Return the configured watcher (local FolderWatcher or GDriveWatcher)."""
     if settings.watch_source == "local":
         return FolderWatcher()
@@ -40,6 +40,7 @@ def build_watcher(workflow, *, drive_client=None, gdrive_db=None):
         client=drive_client,
         db=gdrive_db,
         is_workflow_idle=lambda: workflow.data.state == WorkflowState.IDLE,
+        on_error=on_error,
     )
 
 
@@ -90,7 +91,10 @@ class InvoiceAutomationService:
         )
 
         self.watcher = build_watcher(
-            self.workflow, drive_client=drive_client, gdrive_db=gdrive_db
+            self.workflow,
+            drive_client=drive_client,
+            gdrive_db=gdrive_db,
+            on_error=lambda msg: self.bot.send_error(msg, "gdrive-watcher"),
         )
 
         # Set up Telegram callback handler

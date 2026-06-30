@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from pathlib import Path
-from typing import Callable
+from typing import Awaitable, Callable
 
 from src.config import settings
 from src.gdrive.client import DriveClient
@@ -22,6 +22,7 @@ class GDriveWatcher:
         watch_path: str | None = None,
         poll_interval: float | None = None,
         download_dir: Path | None = None,
+        on_error: Callable[[str], Awaitable[None]] | None = None,
     ) -> None:
         self._client = client
         self._db = db
@@ -32,6 +33,7 @@ class GDriveWatcher:
             else settings.gdrive_poll_interval_seconds
         )
         self._download_dir = Path(download_dir or Path("data/incoming"))
+        self._on_error = on_error
         self._queue: asyncio.Queue[FileEvent] = asyncio.Queue()
         self._folder_id: str | None = None
         self._task: asyncio.Task | None = None
@@ -72,7 +74,15 @@ class GDriveWatcher:
         target = candidates[0]  # list_pdfs returns oldest-first
         self._db.mark_in_progress(target.id, target.name)
         dest = self._download_dir / target.name
-        self._client.download(target.id, dest)
+        try:
+            self._client.download(target.id, dest)
+        except Exception as e:
+            logger.exception("GDrive download failed for %s: %s", target.name, e)
+            if self._on_error is not None:
+                await self._on_error(
+                    f"GDrive download failed for {target.name}: {e}. Run /reset to retry."
+                )
+            return
         logger.info("New Drive timesheet: %s (id=%s)", target.name, target.id)
         self._queue.put_nowait(
             FileEvent(
