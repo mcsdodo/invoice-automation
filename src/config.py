@@ -17,6 +17,16 @@ class Settings(BaseSettings):
     watch_folder: Path = Path("data/incoming")
     archive_folder: Path = Path("data/archive")
 
+    # Watch source: "gdrive" (Google Drive folder) or "local" (folder watcher)
+    watch_source: str = "gdrive"
+
+    # Google Drive watcher
+    gdrive_watch_path: str = "_documents_intake/techlab/invoicing_automation"
+    gdrive_poll_interval_seconds: int = 30
+    gdrive_db_path: Path = Path("data/gdrive.db")
+    gdrive_processed_subfolder: str = "processed"
+    gdrive_errors_subfolder: str = "errors"
+
     # Gmail OAuth
     gmail_credentials_file: Path = Path("config/credentials.json")
     gmail_token_file: Path = Path("config/token.json")
