@@ -1,28 +1,14 @@
 services:
   invoice-automation:
+    image: invoice-automation:latest
     build: .
-    env_file:
-      - .env
-      - path: .env.${ENVIRONMENT:-local}
-        required: false
-    environment:
-      # Force unbuffered Python output for real-time logs
-      - PYTHONUNBUFFERED=1
-      # Allow HTTP for OAuth redirect (localhost development)
-      - OAUTHLIB_INSECURE_TRANSPORT=1
-      # Override Windows paths with container paths
-      - WATCH_FOLDER=/app/data/incoming
-      - ARCHIVE_FOLDER=/app/data/archive
-      - GMAIL_CREDENTIALS_FILE=/app/config/credentials.json
-      - GMAIL_TOKEN_FILE=/app/config/token.json
-      - GMAIL_POLL_INTERVAL=10
-      - WATCH_SOURCE=${WATCH_SOURCE:-gdrive}
-      - GDRIVE_WATCH_PATH=${GDRIVE_WATCH_PATH:-_documents_intake/techlab/invoicing_automation}
-      - GDRIVE_DB_PATH=/app/data/gdrive.db
-    ports:
-      # OAuth callback port (only needed for initial auth)
-      - "8080:8080"
+    # Env is injected by Komodo (see komodo.toml [[stack]] environment block).
+    # Local dev: create a .env and add an `env_file: [.env]` line, and set
+    # INVOICE_DATA_DIR=./ so the bind mounts resolve to ./data and ./config.
+    # OAuth callback port (8080) intentionally not published — production uses a
+    # pre-consented token.json copied to the host config mount. Re-add a
+    # `ports: ["8080:8080"]` line temporarily only if an on-host re-consent is ever needed.
     volumes:
-      - ./data:/app/data
-      - ./config:/app/config  # Writable for token.json
+      - ${INVOICE_DATA_DIR:-/mnt/shared_configs/invoice-automation}/data:/app/data
+      - ${INVOICE_DATA_DIR:-/mnt/shared_configs/invoice-automation}/config:/app/config
     restart: always
