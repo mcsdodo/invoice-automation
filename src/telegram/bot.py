@@ -99,6 +99,7 @@ class TelegramBot:
         self._chat_id: int = settings.telegram_chat_id
         self._callback_handler: CallbackHandler | None = None
         self._reset_handler: Callable[[], Coroutine[Any, Any, None]] | None = None
+        self._drive_client = None
         self._edit_mode: bool = False
         self._edit_timeout_task: asyncio.Task | None = None
         self._pending_edit_message_id: int | None = None
@@ -176,6 +177,10 @@ class TelegramBot:
     def set_reset_handler(self, handler: Callable[[], Coroutine[Any, Any, None]]) -> None:
         """Set the handler for /reset command."""
         self._reset_handler = handler
+
+    def set_drive_client(self, drive_client) -> None:
+        """Provide a DriveClient so debug actions can upload to the watched Drive folder."""
+        self._drive_client = drive_client
 
     async def _handle_reset_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle /reset command."""
@@ -716,10 +721,25 @@ class TelegramBot:
 
             c.save()
 
-            await self.send_message(
-                f"📄 Test PDF created: `{output_path.name}`\n\n"
-                "Watcher should detect it shortly."
-            )
+            if settings.watch_source != "local":
+                # gdrive mode: upload to the watched Drive folder
+                if self._drive_client is None:
+                    await self.send_message(
+                        "❌ debug Drive upload unavailable — no Drive client wired"
+                    )
+                    return
+                folder_id = self._drive_client.resolve_folder_path(settings.gdrive_watch_path)
+                self._drive_client.upload_pdf(folder_id, output_path, "timesheet_test.pdf")
+                await self.send_message(
+                    f"📄 Test PDF uploaded to Drive `{settings.gdrive_watch_path}`.\n\n"
+                    f"GDrive watcher will pick it up on the next poll (~{settings.gdrive_poll_interval_seconds}s)."
+                )
+            else:
+                # local mode: existing behavior
+                await self.send_message(
+                    f"📄 Test PDF created: `{output_path.name}`\n\n"
+                    "Watcher should detect it shortly."
+                )
             logger.info(f"Debug: created test PDF at {output_path}")
 
         except Exception as e:

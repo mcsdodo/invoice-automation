@@ -81,6 +81,7 @@ class InvoiceAutomationService:
         if settings.watch_source != "local":
             drive_client = DriveClient(get_drive_service())
             gdrive_db = GDriveDB(settings.gdrive_db_path)
+            self.bot.set_drive_client(drive_client)
 
         self.workflow = WorkflowCoordinator(
             telegram_bot=self.bot,

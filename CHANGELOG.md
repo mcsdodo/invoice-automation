@@ -8,6 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [2026-06-30]
 
 ### Added
+- Debug "Drop PDF" button now uploads the test timesheet directly to the watched Google Drive folder in gdrive mode (`WATCH_SOURCE=gdrive`); the existing `GDriveWatcher` poll picks it up on the next cycle. Local mode behavior is unchanged.
+- `DriveClient.upload_pdf(folder_id, src_path, name)` — upload a local PDF into a Drive folder (Shared Drive-safe via `supportsAllDrives=True`).
+- `TELEGRAM_DEBUG_MENU=true` added to the Komodo `invoice-automation` stack env and wired through `docker-compose.yml` so the full debug keyboard is active in the deployed environment.
+
+### Added (earlier)
 - Public OAuth redirect support via `OAUTH_REDIRECT_URI` env var — when set, the consent flow uses that URI verbatim (e.g. `https://invoice-merging.lacny.me/oauth2callback`) so the one-time consent can complete through Caddy without juggling token files; empty string retains the original localhost dev flow.
 - Robust OAuth callback loop — the WSGI server now polls with a 1-second timeout, ignores probe/prefetch hits, and raises `TimeoutError` after `OAUTH_CALLBACK_TIMEOUT_SECONDS` (default 600 s) so a hung consent attempt is surfaced clearly rather than blocking forever.
 - Port 8080 published in `docker-compose.yml` with Caddy labels (`${INVOICE_MERGING_DOMAIN}`); `OAUTH_REDIRECT_URI` and `INVOICE_MERGING_DOMAIN` injected via Komodo environment block.

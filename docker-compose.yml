@@ -33,6 +33,7 @@ services:
       - LLM_MODEL=${LLM_MODEL}
       - GEMINI_API_KEY=${GEMINI_API_KEY}
       - APPROVAL_KEYWORDS=${APPROVAL_KEYWORDS}
+      - TELEGRAM_DEBUG_MENU=${TELEGRAM_DEBUG_MENU}
     ports:
       # OAuth consent callback — Caddy routes ${INVOICE_MERGING_DOMAIN} → host:8080 → here.
       # The callback server only listens during a one-time consent; harmless 502 otherwise.

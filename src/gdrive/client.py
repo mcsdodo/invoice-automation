@@ -8,7 +8,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from googleapiclient.http import MediaIoBaseDownload
+from googleapiclient.http import MediaFileUpload, MediaIoBaseDownload
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +117,18 @@ class DriveClient:
             fields="id",
             **_WRITE_KW,
         ).execute()
+        return created["id"]
+
+    def upload_pdf(self, folder_id: str, src_path: Path, name: str) -> str:
+        """Upload a local PDF into a Drive folder; return the new file ID."""
+        media = MediaFileUpload(str(src_path), mimetype="application/pdf", resumable=False)
+        created = self._service.files().create(
+            body={"name": name, "parents": [folder_id]},
+            media_body=media,
+            fields="id",
+            **_WRITE_KW,
+        ).execute()
+        logger.info("Uploaded %s to Drive folder %s as %s", src_path, folder_id, created["id"])
         return created["id"]
 
     def move(self, file_id: str, dest_folder_id: str) -> None:
