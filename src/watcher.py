@@ -20,6 +20,8 @@ class FileEvent:
     """Event representing a new PDF file detected in the watch folder."""
 
     file_path: Path
+    gdrive_file_id: str | None = None
+    gdrive_folder_id: str | None = None
 
 
 class _DebouncedPDFHandler(FileSystemEventHandler):

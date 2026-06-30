@@ -53,6 +53,10 @@ class WorkflowData(BaseModel):
     timesheet_path: Path | None = None
     timesheet_info: TimesheetInfo | None = None
 
+    # Google Drive origin (set when watch source is gdrive)
+    gdrive_file_id: str | None = None
+    gdrive_folder_id: str | None = None
+
     # Document tracking
     approval_received: bool = False
     invoice_received: bool = False
@@ -80,6 +84,8 @@ class WorkflowData(BaseModel):
         self.state = WorkflowState.IDLE
         self.timesheet_path = None
         self.timesheet_info = None
+        self.gdrive_file_id = None
+        self.gdrive_folder_id = None
         self.approval_received = False
         self.invoice_received = False
         self.manager_thread_id = None
