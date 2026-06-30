@@ -86,7 +86,7 @@ git commit -m "test(invoice-automation): scaffold pytest config + tests dir"
 ### Task 2: Add Drive scope + `src/gdrive/auth.py`
 
 **Files:**
-- Modify: `src/gmail/auth.py:20-24` (the `SCOPES` list)
+- Modify: `src/gmail/auth.py:20-24` (the `SCOPES` list) AND `get_credentials()` (scope-staleness gate)
 - Create: `src/gdrive/__init__.py`
 - Create: `src/gdrive/auth.py`
 - Create: `tests/unit/test_gdrive_auth.py`
@@ -94,6 +94,14 @@ git commit -m "test(invoice-automation): scaffold pytest config + tests dir"
 **Interfaces:**
 - Consumes: `src.gmail.auth.get_credentials() -> google.oauth2.credentials.Credentials` (existing).
 - Produces: `src.gdrive.auth.get_drive_service() -> googleapiclient.discovery.Resource` and the Drive scope constant `DRIVE_SCOPE = "https://www.googleapis.com/auth/drive"`.
+
+> **CRITICAL (scope re-consent):** adding a scope does NOT by itself trigger
+> re-auth. The existing `get_credentials()` only re-auths when `_needs_refresh()`
+> (expiry) is true — a non-expired `token.json` minted for the OLD scopes is
+> returned as `creds.valid == True`, and every Drive call then 403s
+> ("insufficient permission"). Step 3b fixes this by forcing a fresh OAuth flow
+> when the stored token lacks the now-required scopes. `Credentials.has_scopes`
+> is confirmed available in the pinned google-auth.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -118,6 +126,21 @@ def test_get_drive_service_builds_v3_with_shared_creds():
         get_drive_service()
     m_creds.assert_called_once()
     m_build.assert_called_once_with("drive", "v3", credentials=fake_creds)
+
+
+def test_get_credentials_forces_reauth_when_scopes_stale(tmp_path):
+    """A stored token missing the drive scope must force a fresh OAuth flow."""
+    import src.gmail.auth as auth
+
+    stale = MagicMock()
+    stale.has_scopes.return_value = False  # token predates the drive scope
+    fresh = MagicMock()
+    with patch.object(auth, "_load_credentials", return_value=stale), \
+         patch.object(auth, "_run_oauth_flow", return_value=fresh) as m_flow, \
+         patch.object(auth, "_save_credentials"):
+        out = auth.get_credentials()
+    m_flow.assert_called_once()
+    assert out is fresh
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -136,6 +159,20 @@ SCOPES = [
     "https://www.googleapis.com/auth/gmail.modify",
     "https://www.googleapis.com/auth/drive",
 ]
+```
+
+- [ ] **Step 3b: Force re-consent when stored token lacks required scopes**
+
+In `src/gmail/auth.py`, in `get_credentials()`, immediately after
+`creds = _load_credentials(token_path)` and BEFORE the `if creds is not None:`
+refresh branch, insert:
+
+```python
+    # A token minted for an older scope set is still "valid" but will 403 on the
+    # new scope. Force a fresh OAuth flow when granted scopes are stale.
+    if creds is not None and not creds.has_scopes(set(SCOPES)):
+        logger.warning("Stored token missing required scopes; re-running OAuth flow")
+        creds = None
 ```
 
 - [ ] **Step 4: Create `src/gdrive/__init__.py`** (empty file).
@@ -170,7 +207,7 @@ def get_drive_service() -> Resource:
 - [ ] **Step 6: Run tests, verify pass**
 
 Run: `python -m pytest tests/unit/test_gdrive_auth.py -v`
-Expected: PASS (2 passed).
+Expected: PASS (3 passed).
 
 - [ ] **Step 7: Commit**
 
@@ -195,6 +232,7 @@ git commit -m "feat(invoice-automation): add Drive scope + get_drive_service"
   - `mark_done(file_id: str) -> None`
   - `mark_error(file_id: str) -> None`
   - `has_in_progress() -> bool`
+  - `clear_in_progress() -> int` — flip every `in_progress` row to `error`, return count (used by the `/reset` recovery path so a stalled watcher can be unstuck).
   - `close() -> None`
   - Statuses are the literals `"in_progress"`, `"done"`, `"error"`.
 
@@ -239,6 +277,18 @@ def test_mark_in_progress_is_idempotent_upsert(tmp_path):
     db.mark_in_progress("abc", "x.pdf")
     db.mark_in_progress("abc", "x.pdf")  # must not raise on duplicate PK
     assert db.get_status("abc") == "in_progress"
+
+
+def test_clear_in_progress_flips_to_error(tmp_path):
+    db = _db(tmp_path)
+    db.mark_in_progress("a", "a.pdf")
+    db.mark_in_progress("b", "b.pdf")
+    db.mark_done("b")
+    n = db.clear_in_progress()
+    assert n == 1
+    assert db.get_status("a") == "error"
+    assert db.get_status("b") == "done"
+    assert db.has_in_progress() is False
 ```
 
 - [ ] **Step 2: Run test to verify it fails**
@@ -330,6 +380,19 @@ class GDriveDB:
         ).fetchone()
         return row is not None
 
+    def clear_in_progress(self) -> int:
+        """Flip every in_progress row to error. Returns the number changed.
+
+        Recovery hook for /reset: a row left in_progress (e.g. process died
+        mid-workflow) otherwise stalls the watcher forever.
+        """
+        cur = self._conn.execute(
+            "UPDATE gdrive_files SET status = ? WHERE status = ?",
+            (STATUS_ERROR, STATUS_IN_PROGRESS),
+        )
+        self._conn.commit()
+        return cur.rowcount
+
     def close(self) -> None:
         self._conn.close()
 ```
@@ -337,7 +400,7 @@ class GDriveDB:
 - [ ] **Step 4: Run tests, verify pass**
 
 Run: `python -m pytest tests/unit/test_gdrive_db.py -v`
-Expected: PASS (4 passed).
+Expected: PASS (5 passed).
 
 - [ ] **Step 5: Commit**
 
@@ -486,6 +549,11 @@ logger = logging.getLogger(__name__)
 
 _FOLDER_MIME = "application/vnd.google-apps.folder"
 
+# Include Shared Drives in every query. Harmless for My Drive; REQUIRED if the
+# intake folder lives in a Shared Drive (otherwise queries silently return []).
+_LIST_KW = {"supportsAllDrives": True, "includeItemsFromAllDrives": True}
+_WRITE_KW = {"supportsAllDrives": True}
+
 
 @dataclass
 class DriveFile:
@@ -521,6 +589,7 @@ class DriveClient:
                 spaces="drive",
                 fields="files(id,name)",
                 pageSize=10,
+                **_LIST_KW,
             ).execute()
             files = resp.get("files", [])
             if not files:
@@ -543,6 +612,7 @@ class DriveClient:
             spaces="drive",
             fields="files(id,name,createdTime)",
             pageSize=100,
+            **_LIST_KW,
         ).execute()
         out = [
             DriveFile(id=f["id"], name=f["name"], created_time=f.get("createdTime", ""))
@@ -554,7 +624,7 @@ class DriveClient:
     def download(self, file_id: str, dest_path: Path) -> Path:
         dest_path = Path(dest_path)
         dest_path.parent.mkdir(parents=True, exist_ok=True)
-        request = self._service.files().get_media(fileId=file_id)
+        request = self._service.files().get_media(fileId=file_id, **_WRITE_KW)
         buffer = io.BytesIO()
         downloader = MediaIoBaseDownload(buffer, request)
         done = False
@@ -572,7 +642,7 @@ class DriveClient:
             "trashed = false",
         ])
         resp = self._service.files().list(
-            q=q, spaces="drive", fields="files(id,name)", pageSize=1
+            q=q, spaces="drive", fields="files(id,name)", pageSize=1, **_LIST_KW
         ).execute()
         files = resp.get("files", [])
         if files:
@@ -580,17 +650,21 @@ class DriveClient:
         created = self._service.files().create(
             body={"name": name, "mimeType": _FOLDER_MIME, "parents": [parent_id]},
             fields="id",
+            **_WRITE_KW,
         ).execute()
         return created["id"]
 
     def move(self, file_id: str, dest_folder_id: str) -> None:
-        meta = self._service.files().get(fileId=file_id, fields="parents").execute()
+        meta = self._service.files().get(
+            fileId=file_id, fields="parents", **_WRITE_KW
+        ).execute()
         old_parents = ",".join(meta.get("parents", []))
         self._service.files().update(
             fileId=file_id,
             addParents=dest_folder_id,
             removeParents=old_parents,
             fields="id,parents",
+            **_WRITE_KW,
         ).execute()
         logger.info("Moved Drive file %s -> folder %s", file_id, dest_folder_id)
 ```
@@ -1312,7 +1386,25 @@ Ensure `WorkflowState` is imported in `main.py` (`from src.models import Workflo
                     })
 ```
 
-3e. The Drive `get_drive_service()` startup call also serves as the re-consent trigger: in gdrive mode the existing Gmail check at startup already calls `get_gmail_service()`, which uses the shared scopes (now including Drive). The first run with the new scope will run the OAuth flow once.
+3e. Re-consent on first gdrive run: the startup `get_gmail_service()` →
+`get_credentials()` now includes the Task 2 Step 3b scope-staleness gate, so a
+pre-existing token lacking the Drive scope forces one OAuth flow automatically.
+(Do NOT rely on expiry alone — that was the bug fixed in Task 2.)
+
+3f. Extend the existing `on_reset` handler in `start()` so `/reset` also unsticks
+the Drive watcher. The current handler resets workflow state and clears
+`data/temp` + `data/incoming`; add, when `gdrive_db` is set:
+
+```python
+            if gdrive_db is not None:
+                cleared = gdrive_db.clear_in_progress()
+                if cleared:
+                    logger.info("Cleared %d stuck in_progress Drive row(s)", cleared)
+```
+
+(`gdrive_db` is in scope from the `start()` construction above; capture it in the
+closure. Without this, a stalled `in_progress` row blocks the watcher forever —
+`has_in_progress()` stays true.)
 
 - [ ] **Step 4: Run tests, verify pass**
 
@@ -1382,9 +1474,26 @@ git commit -m "docs(invoice-automation): document GDrive watch source + env"
 
 **Goal:** Prove the GDrive watcher works end-to-end against the real Drive folder using the local compose stack.
 
-**Pre-req — Drive-scoped token:** The added `drive` scope invalidates the current `config/token.json`. Two ways to get a working token for local verification:
-- **(a) Re-consent** the existing client: delete `config/token.json`, start the stack, open the OAuth URL printed in logs (port 8080 callback), approve gmail+drive. Requires interactive browser.
-- **(b) Borrow a Drive-scoped token from personal-assistant for testing only** (per user instruction). PA's `gmail` token store carries `drive:full`. If used, document it as test-only and revert before any real deploy. Do NOT commit any token.
+**Pre-req — Drive-scoped token:** The added `drive` scope means the current
+`config/token.json` no longer satisfies the scope gate (Task 2 Step 3b), so a
+re-consent is needed.
+- **(a) Re-consent the existing client (primary path):** delete
+  `config/token.json`, start the stack, open the OAuth URL printed in logs,
+  approve gmail+drive. **Before starting, confirm the `:8080` callback is
+  reachable from wherever the browser runs** (the flow binds `0.0.0.0:8080` in
+  the container, published in compose). On this headless VM, either port-forward
+  `:8080` to the machine with the browser, or run the OAuth flow on a desktop
+  with the same `credentials.json` and copy the resulting `token.json` into
+  `config/`. If `:8080` is not reachable, Task 11 hard-blocks here — resolve it
+  first.
+- **(b) Borrow PA's Drive token — LIKELY A DEAD END, verify before relying:**
+  PA's token is bound to PA's OAuth **client_id** and stored in
+  `google_workspace_mcp`'s own format, NOT an `InstalledAppFlow` `authorized_user`
+  `token.json` bound to invoice-automation's client_id. Refresh tokens are not
+  portable across client_ids, so dropping PA's token into `config/token.json`
+  will almost certainly fail to load/refresh. Only viable if you instead point
+  invoice-automation's `credentials.json` at PA's client AND mint a fresh
+  `authorized_user` token for it. Default to path (a). Do NOT commit any token.
 
 - [ ] **Step 1: Ensure the test Drive folder exists**
 
@@ -1445,4 +1554,17 @@ Append a short "Verification" note to `_tasks/02-gdrive-watch-source/03-plan.md`
 
 **Type consistency:** `GDriveDB` status literals (`in_progress`/`done`/`error`) consistent across Tasks 3, 7, 8. `DriveClient` method names (`resolve_folder_path`, `list_pdfs`, `download`, `ensure_subfolder`, `move`) consistent across Tasks 4, 7, 8. `FileEvent` / `WorkflowData` fields (`gdrive_file_id`, `gdrive_folder_id`) consistent across Tasks 6, 7, 8, 9. `build_watcher` / `_finalize_gdrive` signatures consistent across their defining and calling tasks.
 
-**Known risk to watch during execution:** if a `FileEvent` is enqueued but the process dies before the workflow marks the row terminal, the row stays `in_progress` and stalls the watcher. Acceptable for v1 (clear via `/reset` or manual db delete); note it in CLAUDE.md. Do not add recovery logic unless verification shows it's needed (YAGNI).
+**Known risk to watch during execution:** if a `FileEvent` is enqueued but the
+process dies before the workflow marks the row terminal, the row stays
+`in_progress` and stalls the watcher. Recovery: `/reset` now calls
+`gdrive_db.clear_in_progress()` (Task 9 Step 3f) — flipping stuck rows to `error`
+so the watcher resumes. Note this in CLAUDE.md (Task 10). No auto-recovery beyond
+`/reset` (YAGNI).
+
+**Async note (intentional):** `poll_once` calls the synchronous googleapiclient
+(`list_pdfs`/`download`/`resolve_folder_path`) directly inside the asyncio loop.
+This is consistent with the repo's existing `GmailMonitor`, which also calls
+`.execute()` synchronously inside async methods. Do NOT wrap in
+`asyncio.to_thread` — matching the established convention keeps the code uniform.
+The poll runs in its own task and the workflow is single-tenant, so brief blocking
+during a poll is acceptable.
